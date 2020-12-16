@@ -1,2 +1,195 @@
 # cosmosdb-powershell
 Powershell module for Cosmos DB operations
+
+## Commands
+
+### Get-CosmosDbRecordContent
+
+Extracts and parses the response `Content` of `Get` commands and handles known error codes (404, 429)
+
+Generally this is pipelined after a `Get` command - e.g. `Get-CosmosDbRecord ... | Get-CosmosDbRecordContent`
+
+### Get-CosmosDbRecord
+
+Fetches a single DB record, returns the HTTP response of the lookup
+
+#### Examples
+
+```powershell
+$record = Get-CosmosDbRecord ...
+| Get-CosmosDbRecordContent
+```
+
+#### Parameters
+
+| Name | Usage | Required |
+| - | - | - |
+| ResourceGroup | Azure Resource Group of the database | Yes |
+| Database | The database name | Yes |
+| Container | The container name inside the database | Yes |
+| Collection | The collection name inside the container | Yes |
+| Id | The resource id | Yes |
+| Subscription | The Azure Subscription Id | No - defaults to whatever `az` defaults to |
+| PartitionKey | The partition key of the resource | No - defaults to `Id`<br/>Must be set if the collection uses a different parition scheme |
+
+### Get-AllCosmosDbRecords
+
+Fetches all DB record, returns the HTTP response. The records will be within the `Documents` property of the result.
+
+#### Examples
+
+```powershell
+$records = Get-AllCosmosDbRecords ... 
+| Get-CosmosDbRecordContent 
+| % Documents
+```
+
+#### Parameters
+
+| Name | Usage | Required |
+| - | - | - |
+| ResourceGroup | Azure Resource Group of the database | Yes |
+| Database | The database name | Yes |
+| Container | The container name inside the database | Yes |
+| Collection | The collection name inside the container | Yes |
+| Subscription | The Azure Subscription Id | No - defaults to whatever `az` defaults to |
+
+### Search-CosmosDbRecords
+
+Queries the DB, returns the HTTP response. The records will be within the `Documents` property of the result.
+
+Unfortunately, queries like aggregates, `TOP`, and `DISTINCT` are not supported - see the Cosmos DB docs [here](https://docs.microsoft.com/en-us/rest/api/cosmos-db/querying-cosmosdb-resources-using-the-rest-api#queries-that-cannot-be-served-by-gateway).
+
+#### Examples
+
+```powershell
+# Basic query with no parameters
+$records = Search-CosmosDbRecords -Query "SELECT * FROM c WHERE c.Id in (1, 2, 3)" ...
+| Get-CosmosDbRecordContent 
+| % Documents
+
+# Basic query with no parameters
+$parameters = @( 
+  @{ name = "@id"; value = "1234" },
+  @{ name = "@number"; value = "5678" }
+)
+$records = Search-CosmosDbRecords -Query "SELECT * FROM c WHERE c.Id = @id and c.Number > @number" -Parameters $parameters ...
+| Get-CosmosDbRecordContent 
+| % Documents
+```
+
+#### Parameters
+
+| Name | Usage | Required |
+| - | - | - |
+| ResourceGroup | Azure Resource Group of the database | Yes |
+| Database | The database name | Yes |
+| Container | The container name inside the database | Yes |
+| Collection | The collection name inside the container | Yes |
+| Query | The query as a string with optional parameters | Yes |
+| Parameters | An array of `name-value` pairs to use as query parameters | No |
+| Subscription | The Azure Subscription Id | No - defaults to whatever `az` defaults to |
+
+### New-CosmosDbRecord
+
+Creates a single DB record, returns the HTTP response of the operation
+
+#### Examples
+
+```powershell
+# Add a record
+New-CosmosDbRecord -Object $record ...
+
+# Add a record from pipeline
+$record | New-CosmosDbRecord ...
+
+# Add a record with a custom PartitionKey
+$record | New-CosmosDbRecord -PartitionKey $record.PartitionKey ...
+
+# Add several records with a custom PartitionKey
+$recordList | New-CosmosDbRecord -GetPartitionKeyBlock { param($r) $r.PartitionKey } ...
+
+# Copy all records from one collection to another
+Get-AllCosmosDbRecords -Collection "Collection1" ...
+| Get-CosmosDbRecordContent 
+| % Documents 
+| New-CosmosDbRecord -Collection "Collection2" ...
+```
+
+#### Parameters
+
+| Name | Usage | Required |
+| - | - | - |
+| Object | The record to create | Yes<br/>Accepts value from pipeline |
+| ResourceGroup | Azure Resource Group of the database | Yes |
+| Database | The database name | Yes |
+| Container | The container name inside the database | Yes |
+| Collection | The collection name inside the container | Yes |
+| Subscription | The Azure Subscription Id | No - defaults to whatever `az` defaults to |
+| PartitionKey | The partition key of the resource | No - defaults to `Id`<br/>Must be set if the collection uses a different parition scheme |
+| GetPartitionKeyBlock | Callback to get the `PartitionKey` from `Object` - useful in pipelines | No - used only if `PartitionKey` is not set |
+
+
+### Update-CosmosDbRecord
+
+Updates a single DB record, returns the HTTP response of the operation
+
+The record must exist, if it does not the result is a 404
+
+#### Examples
+
+```powershell
+# Update a record
+Update-CosmosDbRecord -Object $record ...
+
+# Update a record from pipeline
+$record | Update-CosmosDbRecord ...
+
+# Update a record with a custom PartitionKey
+$record | Update-CosmosDbRecord -PartitionKey $record.PartitionKey ...
+
+# Update several records with a custom PartitionKey
+$recordList | Update-CosmosDbRecord -GetPartitionKeyBlock { param($r) $r.PartitionKey } ...
+
+# Updates all records in a DB
+$records = Get-AllCosmosDbRecords ...
+| Get-CosmosDbRecordContent 
+| % Documents 
+$records | foreach { $_.Value = "NewValue" }
+$records | Update-CosmosDbRecord ...
+```
+
+#### Parameters
+
+| Name | Usage | Required |
+| - | - | - |
+| Object | The record to create | Yes<br/>Accepts value from pipeline |
+| ResourceGroup | Azure Resource Group of the database | Yes |
+| Database | The database name | Yes |
+| Container | The container name inside the database | Yes |
+| Collection | The collection name inside the container | Yes |
+| Subscription | The Azure Subscription Id | No - defaults to whatever `az` defaults to |
+| PartitionKey | The partition key of the resource | No - defaults to `Id`<br/>Must be set if the collection uses a different parition scheme |
+| GetPartitionKeyBlock | Callback to get the `PartitionKey` from `Object` - useful in pipelines | No - used only if `PartitionKey` is not set |
+
+### Remove-CosmosDbRecord
+
+Deletes a single DB record, returns the HTTP response of the operation
+
+#### Examples
+
+```powershell
+Remove-CosmosDbRecord ...
+```
+
+#### Parameters
+
+| Name | Usage | Required |
+| - | - | - |
+| ResourceGroup | Azure Resource Group of the database | Yes |
+| Database | The database name | Yes |
+| Container | The container name inside the database | Yes |
+| Collection | The collection name inside the container | Yes |
+| Id | The resource id | Yes |
+| Subscription | The Azure Subscription Id | No - defaults to whatever `az` defaults to |
+| PartitionKey | The partition key of the resource | No - defaults to `Id`<br/>Must be set if the collection uses a different parition scheme |
