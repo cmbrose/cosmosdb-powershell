@@ -122,6 +122,15 @@ Function Get-CommonHeaders([string]$now, [string]$encodedAuthString, [string]$co
     $headers
 }
 
+Function Get-RequestErrorDetails($response)
+{
+    $result = $response.GetResponseStream()
+    $reader = New-Object System.IO.StreamReader($result)
+    $reader.BaseStream.Position = 0
+    $reader.DiscardBufferedData()
+    $reader.ReadToEnd();
+}
+
 Function Invoke-WebRequestWithContinuation([string]$verb, [string]$url, $headers, $body=$null)
 {
     process
@@ -201,7 +210,47 @@ Function Get-AllCosmosDbRecords([string]$resourceGroup, [string]$database, [stri
     }
 }
 
-Function Search-CosmosDbRecords([string]$resourceGroup, [string]$database, [string]$container, [string]$collection, [string]$query, $parameters=@(), [string]$subscription="")
+Function Search-CosmosDbRecords([string]$resourceGroup, [string]$database, [string]$container, [string]$collection, [string]$query, $parameters=@(), [string]$subscription="", [switch]$enableExtraFeatures=$true)
+{
+    begin
+    {
+        $baseUrl=Get-BaseDatabaseUrl $database
+        $collectionsUrl=Get-CollectionsUrl $container $collection
+        $docsUrl="$collectionsUrl/$DOCS_TYPE"
+
+        $url="$baseUrl/$docsUrl"
+
+        $now=Get-Time
+
+        $encodedAuthString=Get-AuthorizationHeader -resourceGroup $resourceGroup -subscription $subscription -database $database -verb $POST_VERB -resourceType $DOCS_TYPE -resourceUrl $collectionsUrl -now $now
+    }
+    process
+    {
+        if ($enableExtraFeatures)
+        {
+            return Search-CosmosDbRecordsWithExtraFeatures -resourceGroup $resourceGroup -database $database -container $container -collection $collection -query $query -parameters $parameters -subscription $subscription
+        }
+
+        try 
+        {
+            $body = @{
+                query = $query;
+                parameters = $parameters;
+            } | ConvertTo-Json
+
+            $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -isQuery $true -contentType "application/query+json"
+            $headers["x-ms-documentdb-query-enablecrosspartition"] = "true"
+
+            Invoke-WebRequestWithContinuation -verb $POST_VERB -url $url -Body $body -Headers $headers
+        }
+        catch [System.Net.WebException] 
+        {
+            $_.Exception.Response
+        }
+    }
+}
+
+Function Search-CosmosDbRecordsWithExtraFeatures([string]$resourceGroup, [string]$database, [string]$container, [string]$collection, [string]$query, $parameters, [string]$subscription)
 {
     begin
     {
@@ -225,7 +274,26 @@ Function Search-CosmosDbRecords([string]$resourceGroup, [string]$database, [stri
             } | ConvertTo-Json
 
             $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -isQuery $true -contentType "application/query+json"
-            $headers["x-ms-documentdb-query-enablecrosspartition"] = "true"
+            $headers += @{
+                "x-ms-documentdb-query-enablecrosspartition" = "true";
+                "x-ms-cosmos-supported-query-features" = "NonValueAggregate, Aggregate, Distinct, MultipleOrderBy, OffsetAndLimit, OrderBy, Top, CompositeAggregate, GroupBy, MultipleAggregates";
+                "x-ms-documentdb-query-enable-scan" = "true";
+                "x-ms-documentdb-query-parallelizecrosspartitionquery" = "true";
+                "x-ms-cosmos-is-query-plan-request" = "True";
+            }
+
+            $response=Invoke-WebRequestWithContinuation -verb $POST_VERB -url $url -Body $body -Headers $headers | Get-CosmosDbRecordContent
+
+            $headers += @{
+                "x-ms-documentdb-partitionkeyrangeid" = "0";
+            }
+
+            $headers.Remove("x-ms-cosmos-is-query-plan-request")
+
+            $rewrittenQuery = $response.QueryInfo.RewrittenQuery
+            $body = @{
+                query = if ($rewrittenQuery) { $rewrittenQuery } else { $query };
+            } | ConvertTo-Json
 
             Invoke-WebRequestWithContinuation -verb $POST_VERB -url $url -Body $body -Headers $headers
         }
@@ -351,7 +419,8 @@ Function Get-CosmosDbRecordContent([parameter(ValueFromPipeline)]$recordResponse
         }
         else
         {
-            throw "Request failed with status code $code"
+            $message = Get-RequestErrorDetails $recordResponse | ConvertFrom-Json | % Message
+            throw "Request failed with status code $code with message`n`n$message"
         }
     }
 }
