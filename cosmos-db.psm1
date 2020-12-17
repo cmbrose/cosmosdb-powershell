@@ -293,6 +293,7 @@ Function Search-CosmosDbRecordsWithExtraFeatures([string]$resourceGroup, [string
             $rewrittenQuery = $response.QueryInfo.RewrittenQuery
             $body = @{
                 query = if ($rewrittenQuery) { $rewrittenQuery } else { $query };
+                parameters = $parameters;
             } | ConvertTo-Json
 
             Invoke-WebRequestWithContinuation -verb $POST_VERB -url $url -Body $body -Headers $headers
