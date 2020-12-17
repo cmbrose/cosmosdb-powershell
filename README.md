@@ -89,6 +89,7 @@ $records = Search-CosmosDbRecords -Query "SELECT * FROM c WHERE c.Id = @id and c
 | Query | The query as a string with optional parameters | Yes |
 | Parameters | An array of `name-value` pairs to use as query parameters | No |
 | Subscription | The Azure Subscription Id | No - defaults to whatever `az` defaults to |
+| DisableExtraFeatures | Disables extra query features required to perform operations like aggregates, `TOP`, or `DISTINCT`. Should be used in case the support for these operations has a bug :smile: See the Cosmos DB docs [here](https://docs.microsoft.com/en-us/rest/api/cosmos-db/querying-cosmosdb-resources-using-the-rest-api#queries-that-cannot-be-served-by-gateway). | No - defaults to false |
 
 ### New-CosmosDbRecord
 
