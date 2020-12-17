@@ -210,7 +210,7 @@ Function Get-AllCosmosDbRecords([string]$resourceGroup, [string]$database, [stri
     }
 }
 
-Function Search-CosmosDbRecords([string]$resourceGroup, [string]$database, [string]$container, [string]$collection, [string]$query, $parameters=@(), [string]$subscription="", [switch]$enableExtraFeatures=$true)
+Function Search-CosmosDbRecords([string]$resourceGroup, [string]$database, [string]$container, [string]$collection, [string]$query, $parameters=@(), [string]$subscription="", [switch]$disableExtraFeatures=$false)
 {
     begin
     {
@@ -226,7 +226,7 @@ Function Search-CosmosDbRecords([string]$resourceGroup, [string]$database, [stri
     }
     process
     {
-        if ($enableExtraFeatures)
+        if (!$disableExtraFeatures)
         {
             return Search-CosmosDbRecordsWithExtraFeatures -resourceGroup $resourceGroup -database $database -container $container -collection $collection -query $query -parameters $parameters -subscription $subscription
         }
