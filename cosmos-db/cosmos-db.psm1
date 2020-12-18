@@ -122,6 +122,27 @@ Function Get-CommonHeaders([string]$now, [string]$encodedAuthString, [string]$co
     $headers
 }
 
+Function Get-QueryParametersAsNameValuePairs($obj)
+{
+    if (!$obj)
+    {
+        return @()
+    }
+
+    if ($obj -is [array])
+    {
+        return $obj
+    }
+
+    if ($obj -is [hashtable])
+    {
+        return $obj.Keys | % { $nvs = @() } { $nvs += @{ name = $_; value = $obj.$_ } } { $nvs }
+    }
+
+    $type = $obj.GetType()
+    throw "Cannot convert type $type to Name-Value pairs"
+}
+
 Function Get-RequestErrorDetails($response)
 {
     $result = $response.GetResponseStream()
@@ -210,10 +231,12 @@ Function Get-AllCosmosDbRecords([string]$resourceGroup, [string]$database, [stri
     }
 }
 
-Function Search-CosmosDbRecords([string]$resourceGroup, [string]$database, [string]$container, [string]$collection, [string]$query, $parameters=@(), [string]$subscription="", [switch]$disableExtraFeatures=$false)
+Function Search-CosmosDbRecords([string]$resourceGroup, [string]$database, [string]$container, [string]$collection, [string]$query, $parameters=$null, [string]$subscription="", [switch]$disableExtraFeatures=$false)
 {
     begin
     {
+        $parameters = @(Get-QueryParametersAsNameValuePairs $parameters)
+
         $baseUrl=Get-BaseDatabaseUrl $database
         $collectionsUrl=Get-CollectionsUrl $container $collection
         $docsUrl="$collectionsUrl/$DOCS_TYPE"
