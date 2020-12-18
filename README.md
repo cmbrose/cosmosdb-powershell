@@ -68,10 +68,19 @@ $records = Search-CosmosDbRecords -Query "SELECT * FROM c WHERE c.Id in (1, 2, 3
 | Get-CosmosDbRecordContent 
 | % Documents
 
-# Basic query with no parameters
+# Basic query with parameters as name value pairs
 $parameters = @( 
   @{ name = "@id"; value = "1234" },
-  @{ name = "@number"; value = "5678" }
+  @{ name = "@number"; value = 5678 }
+)
+$records = Search-CosmosDbRecords -Query "SELECT * FROM c WHERE c.Id = @id and c.Number > @number" -Parameters $parameters ...
+| Get-CosmosDbRecordContent 
+| % Documents
+
+# Basic query with parameters as hashtable
+$parameters = @{
+  "@id" = "1234";
+  "@number" = 5678;
 )
 $records = Search-CosmosDbRecords -Query "SELECT * FROM c WHERE c.Id = @id and c.Number > @number" -Parameters $parameters ...
 | Get-CosmosDbRecordContent 
@@ -87,7 +96,7 @@ $records = Search-CosmosDbRecords -Query "SELECT * FROM c WHERE c.Id = @id and c
 | Container | The container name inside the database | Yes |
 | Collection | The collection name inside the container | Yes |
 | Query | The query as a string with optional parameters | Yes |
-| Parameters | An array of `name-value` pairs to use as query parameters | No |
+| Parameters | Parameters values used in the query. Accepts an array of `name-value` pairs or a hashtable | No |
 | Subscription | The Azure Subscription Id | No - defaults to whatever `az` defaults to |
 | DisableExtraFeatures | Disables extra query features required to perform operations like aggregates, `TOP`, or `DISTINCT`. Should be used in case the support for these operations has a bug :smile: See the Cosmos DB docs [here](https://docs.microsoft.com/en-us/rest/api/cosmos-db/querying-cosmosdb-resources-using-the-rest-api#queries-that-cannot-be-served-by-gateway). | No - defaults to false |
 
