@@ -26,5 +26,5 @@ jobs:
         uses: pcgeek86/publish-powershell-module-action@v19
         id: publish-module
         with:
-          modulePath: ./cosmos-db
+          modulePath: /home/runner/work/cosmosdb-powershell/cosmos-db
           NuGetApiKey: ${{ secrets.PS_GALLERY_KEY }}
