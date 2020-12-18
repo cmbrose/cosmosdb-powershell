@@ -18,7 +18,7 @@ ModuleVersion = '1.0'
 # CompatiblePSEditions = @()
 
 # ID used to uniquely identify this module
-GUID = '3b1286c3-b477-4233-a1b3-f8968ef02e45'
+GUID = '9bc4382d-55bc-43f7-ad63-0ba3c2f09288'
 
 # Author of this module
 Author = 'cmbrose'
@@ -101,10 +101,10 @@ PrivateData = @{
         # Tags = @()
 
         # A URL to the license for this module.
-        # LicenseUri = ''
+        LicenseUri = 'https://github.com/cmbrose/cosmosdb-powershell/blob/main/LICENSE'
 
         # A URL to the main website for this project.
-        # ProjectUri = ''
+        ProjectUri = 'https://github.com/cmbrose/cosmosdb-powershell'
 
         # A URL to an icon representing this module.
         # IconUri = ''
@@ -117,7 +117,7 @@ PrivateData = @{
 } # End of PrivateData hashtable
 
 # HelpInfo URI of this module
-# HelpInfoURI = ''
+HelpInfoURI = 'https://github.com/cmbrose/cosmosdb-powershell/blob/main/README.md'
 
 # Default prefix for commands exported from this module. Override the default prefix using Import-Module -Prefix.
 # DefaultCommandPrefix = ''
