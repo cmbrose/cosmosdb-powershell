@@ -1,4 +1,4 @@
-$DB_TYPE="dbs" # aka container
+$DB_TYPE="dbs" # aka Container
 $COLLS_TYPE="colls"
 $DOCS_TYPE="docs"
 
@@ -12,19 +12,19 @@ $API_VERSION="2018-12-31"
 $MASTER_KEY_CACHE = @{}
 $SIGNATURE_HASH_CACHE = @{}
 
-Function Get-BaseDatabaseUrl([string]$database)
+Function Get-BaseDatabaseUrl([string]$Database)
 {
-    return "https://$database.documents.azure.com"
+    return "https://$Database.documents.azure.com"
 }
 
-Function Get-CollectionsUrl([string]$container, [string]$collection)
+Function Get-CollectionsUrl([string]$Container, [string]$Collection)
 {
-    return "$DB_TYPE/$container/$COLLS_TYPE/$collection"
+    return "$DB_TYPE/$Container/$COLLS_TYPE/$Collection"
 }
 
-Function Get-DocumentsUrl([string]$container, [string]$collection, [string]$id)
+Function Get-DocumentsUrl([string]$Container, [string]$Collection, [string]$RecordId)
 {
-    return (Get-CollectionsUrl $container $collection) + "/$DOCS_TYPE/$id"
+    return (Get-CollectionsUrl $Container $Collection) + "/$DOCS_TYPE/$RecordId"
 }
 
 Function Get-Time()
@@ -32,9 +32,9 @@ Function Get-Time()
     Get-Date ([datetime]::UtcNow) -Format "R"
 }
 
-Function Get-Base64Masterkey([string]$resourceGroup, [string]$database, [string]$subscription)
+Function Get-Base64Masterkey([string]$ResourceGroup, [string]$Database, [string]$SubscriptionId)
 {
-    $cacheKey = "$subscription/$resourceGroup/$database"
+    $cacheKey = "$SubscriptionId/$ResourceGroup/$Database"
     $cacheEntry = $MASTER_KEY_CACHE[$cacheKey]
 
     if ($cacheEntry -and ($cacheEntry.Expiration -gt [datetime]::UtcNow))
@@ -42,13 +42,13 @@ Function Get-Base64Masterkey([string]$resourceGroup, [string]$database, [string]
         return $cacheEntry.Value
     }
 
-    if ($subscription)
+    if ($SubscriptionId)
     {
-        $masterKey = az cosmosdb keys list --name $database --query primaryMasterKey --output tsv --resource-group $resourceGroup --subscription $subscription
+        $masterKey = az cosmosdb keys list --name $Database --query primaryMasterKey --output tsv --resource-group $ResourceGroup --subscription $SubscriptionId
     }
     else
     {
-        $masterKey = az cosmosdb keys list --name $database --query primaryMasterKey --output tsv --resource-group $resourceGroup    
+        $masterKey = az cosmosdb keys list --name $Database --query primaryMasterKey --output tsv --resource-group $ResourceGroup    
     }
 
     $MASTER_KEY_CACHE[$cacheKey] = @{ Expiration = [datetime]::UtcNow.AddHours(6); Value = $masterKey }
@@ -88,9 +88,9 @@ Function Get-EncodedAuthString([string]$signatureHash)
     [uri]::EscapeDataString($authString)
 }
 
-Function Get-AuthorizationHeader([string]$resourceGroup, [string]$subscription, [string]$database, [string]$verb, [string]$resourceType, [string]$resourceUrl, [string]$now)
+Function Get-AuthorizationHeader([string]$ResourceGroup, [string]$SubscriptionId, [string]$Database, [string]$verb, [string]$resourceType, [string]$resourceUrl, [string]$now)
 {            
-    $masterKey=Get-Base64Masterkey -resourceGroup $resourceGroup -database $database -subscription $subscription
+    $masterKey=Get-Base64Masterkey -ResourceGroup $ResourceGroup -Database $Database -SubscriptionId $SubscriptionId
         
     $signature=Get-Signature -verb $verb -resourceType $resourceType -resourceUrl $resourceUrl -now $now
 
@@ -99,7 +99,7 @@ Function Get-AuthorizationHeader([string]$resourceGroup, [string]$subscription, 
     Get-EncodedAuthString -signatureHash $signatureHash
 }
 
-Function Get-CommonHeaders([string]$now, [string]$encodedAuthString, [string]$contentType="application/json", [bool]$isQuery=$false, [string]$partitionKey=$null)
+Function Get-CommonHeaders([string]$now, [string]$encodedAuthString, [string]$contentType="application/json", [bool]$isQuery=$false, [string]$PartitionKey=$null)
 {
     $headers = @{ 
         "x-ms-date"=$now;
@@ -114,7 +114,7 @@ Function Get-CommonHeaders([string]$now, [string]$encodedAuthString, [string]$co
         $headers[ "x-ms-documentdb-isquery"] = "true"
     }
 
-    if ($partitionKey)
+    if ($PartitionKey)
     {
         $headers["x-ms-documentdb-partitionkey"] = "[`"$requestPartitionKey`"]"
     }
@@ -169,26 +169,81 @@ Function Invoke-WebRequestWithContinuation([string]$verb, [string]$url, $headers
     }
 }
 
-Function Get-CosmosDbRecord([string]$resourceGroup, [string]$database, [string]$container, [string]$collection, [string]$id, [string]$subscription="", [string]$partitionKey="")
+<#
+.SYNOPSIS
+    Fetches a single DB record, returns the HTTP response of the lookup
+    
+.PARAMETER ResourceGroup
+    Azure Resource Group of the database
+.PARAMETER Database
+    The database name
+.PARAMETER Container
+    The container name inside the database
+.PARAMETER Collection
+    The collection name inside the container
+.PARAMETER RecordId
+    The record's id
+.PARAMETER SubscriptionId
+    [Optional] The Azure Subscription Id. Default is the same as `az`.
+.PARAMETER PartitionKey
+    [Optional] The record's partition key. Default is `RecordId`. Required if using a custom partition strategy.
+
+.EXAMPLE
+    $> Get-CosmosDbRecord ...
+
+    StatusCode        : 200
+    StatusDescription : OK
+    Content           : { ... }
+    RawContent        : ...
+    Forms             : {}
+    Headers           : { ... }
+    Images            : {}
+    InputFields       : {}
+    Links             : {}
+    ParsedHtml        : mshtml.HTMLDocumentClass
+    RawContentLength  : 1234
+.EXAMPLE
+    $> Get-CosmosDbRecord ... | Get-CosmosDbRecordContent
+
+    id   : 12345
+    key1 : value1
+    key2 : value2
+.EXAMPLE
+    $> Get-CosmosDbRecord ... | Get-CosmosDbRecordContent | ConvertTo-Json
+
+    {
+        "id": 12345,
+        "key1", "value1",
+        "key2": "value2"
+    }
+#>
+Function Get-CosmosDbRecord(
+    [parameter(Mandatory=$true)][string]$ResourceGroup,
+    [parameter(Mandatory=$true)][string]$Database, 
+    [parameter(Mandatory=$true)][string]$Container,
+    [parameter(Mandatory=$true)][string]$Collection, 
+    [parameter(Mandatory=$true)][string]$RecordId, 
+    [parameter(Mandatory=$false)][string]$SubscriptionId="", 
+    [parameter(Mandatory=$false)][string]$PartitionKey="")
 {
     begin
     {
-        $baseUrl=Get-BaseDatabaseUrl $database
-        $documentUrl=Get-DocumentsUrl $container $collection $id
+        $baseUrl = Get-BaseDatabaseUrl $Database
+        $documentUrl = Get-DocumentsUrl $Container $Collection $RecordId
 
-        $url="$baseUrl/$documentUrl"
+        $url = "$baseUrl/$documentUrl"
 
-        $now=Get-Time
+        $now = Get-Time
 
-        $encodedAuthString=Get-AuthorizationHeader -resourceGroup $resourceGroup -subscription $subscription -database $database -verb $GET_VERB -resourceType $DOCS_TYPE -resourceUrl $documentUrl -now $now
+        $encodedAuthString = Get-AuthorizationHeader -ResourceGroup $ResourceGroup -SubscriptionId $SubscriptionId -Database $Database -verb $GET_VERB -resourceType $DOCS_TYPE -resourceUrl $documentUrl -now $now
 
-        $requestPartitionKey = if ($partitionKey) { $partitionKey } else { $id }
+        $requestPartitionKey = if ($PartitionKey) { $PartitionKey } else { $RecordId }
     }
     process
     {
         try 
         {
-            $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -partitionKey $requestPartitionKey -isQuery $true
+            $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -PartitionKey $requestPartitionKey -isQuery $true
 
             Invoke-WebRequest -Method $GET_VERB -Uri $url -Headers $headers
         }
@@ -199,19 +254,69 @@ Function Get-CosmosDbRecord([string]$resourceGroup, [string]$database, [string]$
     }
 }
 
-Function Get-AllCosmosDbRecords([string]$resourceGroup, [string]$database, [string]$container, [string]$collection, [string]$subscription="")
+<#
+.SYNOPSIS
+    Fetches all DB record, returns the HTTP response. The records will be within the Documents property of the result.
+
+.PARAMETER ResourceGroup
+    Azure Resource Group of the database
+.PARAMETER Database
+    The database name
+.PARAMETER Container
+    The container name inside the database
+.PARAMETER Collection
+    The collection name inside the container
+.PARAMETER SubscriptionId
+    [Optional] The Azure Subscription Id. Default is the same as `az`.
+
+.EXAMPLE
+    $> Get-AllCosmosDbRecords ...
+
+    StatusCode        : 200
+    StatusDescription : OK
+    Content           : { ... }
+    RawContent        : ...
+    Forms             : {}
+    Headers           : { ... }
+    Images            : {}
+    InputFields       : {}
+    Links             : {}
+    ParsedHtml        : mshtml.HTMLDocumentClass
+    RawContentLength  : 1234
+.EXAMPLE
+    $> Get-AllCosmosDbRecords ... | Get-CosmosDbRecordContent
+
+    id   : 1
+    ...
+
+    id   : 2
+    ...
+.EXAMPLE
+    $> Get-AllCosmosDbRecords ... | Get-CosmosDbRecordContent | ConvertTo-Json
+
+    [
+        { "id": 1, ... },
+        { "id": 2, ... },
+    ]
+#>
+Function Get-AllCosmosDbRecords(
+    [parameter(Mandatory=$true)][string]$ResourceGroup, 
+    [parameter(Mandatory=$true)][string]$Database, 
+    [parameter(Mandatory=$true)][string]$Container, 
+    [parameter(Mandatory=$true)][string]$Collection, 
+    [parameter(Mandatory=$false)][string]$SubscriptionId="")
 {
     begin
     {
-        $baseUrl=Get-BaseDatabaseUrl $database
-        $collectionsUrl=Get-CollectionsUrl $container $collection
+        $baseUrl=Get-BaseDatabaseUrl $Database
+        $collectionsUrl=Get-CollectionsUrl $Container $Collection
         $docsUrl="$collectionsUrl/$DOCS_TYPE"
 
         $url="$baseUrl/$docsUrl"
 
         $now=Get-Time
 
-        $encodedAuthString=Get-AuthorizationHeader -resourceGroup $resourceGroup -subscription $subscription -database $database -verb $GET_VERB -resourceType $DOCS_TYPE -resourceUrl $collectionsUrl -now $now
+        $encodedAuthString=Get-AuthorizationHeader -ResourceGroup $ResourceGroup -SubscriptionId $SubscriptionId -Database $Database -verb $GET_VERB -resourceType $DOCS_TYPE -resourceUrl $collectionsUrl -now $now
     }
     process
     {
@@ -231,37 +336,108 @@ Function Get-AllCosmosDbRecords([string]$resourceGroup, [string]$database, [stri
     }
 }
 
-Function Search-CosmosDbRecords([string]$resourceGroup, [string]$database, [string]$container, [string]$collection, [string]$query, $parameters=$null, [string]$subscription="", [switch]$disableExtraFeatures=$false)
+<#
+.SYNOPSIS
+    Queries the DB, returns the HTTP response. The records will be within the Documents property of the result.
+
+.PARAMETER ResourceGroup
+    Azure Resource Group of the database
+.PARAMETER Database
+    The database name
+.PARAMETER Container
+    The container name inside the database
+.PARAMETER Collection
+    The collection name inside the container
+.PARAMETER Query
+    The query as a string with optional parameters
+.PARAMETER Parameters
+    [Optional] Parameters values used in the query. Accepts an array of name-value pairs or a hashtable.
+.PARAMETER SubscriptionId
+    [Optional] The Azure Subscription Id. Default is the same as `az`.
+.PARAMETER DisableExtraFeatures
+    Disables extra query features required to perform operations like aggregates, TOP, or DISTINCT. Should be used in case the support for these operations has a bug 😄. Default is false (extra features enabled).
+
+.EXAMPLE
+    $> Search-CosmosDbRecords -Query "select * from c where c.id in (1, 2)"
+    | Get-CosmosDbRecordContent 
+    | ConvertTo-Json
+
+    [
+        { "id": 1, ... },
+        { "id": 2, ... },
+    ]
+.EXAMPLE
+    $> Search-CosmosDbRecords -Query "select * from c where c.id = @id" -Parameters @(@{ name = "@id"; value = 1 })
+    | Get-CosmosDbRecordContent 
+    | ConvertTo-Json
+
+    { "id": 1, ... },
+.EXAMPLE
+    $> Search-CosmosDbRecords -Query "select * from c where c.id = @id" -Parameters @{ "@id" = 1 }
+    | Get-CosmosDbRecordContent 
+    | ConvertTo-Json
+
+    { "id": 1, ... },
+.EXAMPLE
+    $> Search-CosmosDbRecords -Query "select count(1) as cnt, c.key from c group by c.key"
+    | Get-CosmosDbRecordContent 
+    | % Payload
+    | ConvertTo-Json
+
+    [
+        {
+            "cnt": {
+                "item":  1234
+            },
+            "key": "key1"
+        },
+        {
+            "cnt": {
+                "item":  5678
+            },
+            "key": "key2"
+        }
+    ]
+#>
+Function Search-CosmosDbRecords(
+    [parameter(Mandatory=$true)][string]$ResourceGroup, 
+    [parameter(Mandatory=$true)][string]$Database, 
+    [parameter(Mandatory=$true)][string]$Container, 
+    [parameter(Mandatory=$true)][string]$Collection,
+    [parameter(Mandatory=$true)][string]$Query,
+    [parameter(Mandatory=$true)]$Parameters=$null,
+    [parameter(Mandatory=$true)][string]$SubscriptionId="",
+    [parameter(Mandatory=$true)][switch]$DisableExtraFeatures=$false)
 {
     begin
     {
-        $parameters = @(Get-QueryParametersAsNameValuePairs $parameters)
+        $Parameters = @(Get-QueryParametersAsNameValuePairs $Parameters)
 
-        $baseUrl=Get-BaseDatabaseUrl $database
-        $collectionsUrl=Get-CollectionsUrl $container $collection
+        $baseUrl=Get-BaseDatabaseUrl $Database
+        $collectionsUrl=Get-CollectionsUrl $Container $Collection
         $docsUrl="$collectionsUrl/$DOCS_TYPE"
 
         $url="$baseUrl/$docsUrl"
 
         $now=Get-Time
 
-        $encodedAuthString=Get-AuthorizationHeader -resourceGroup $resourceGroup -subscription $subscription -database $database -verb $POST_VERB -resourceType $DOCS_TYPE -resourceUrl $collectionsUrl -now $now
+        $encodedAuthString=Get-AuthorizationHeader -ResourceGroup $ResourceGroup -SubscriptionId $SubscriptionId -Database $Database -verb $POST_VERB -resourceType $DOCS_TYPE -resourceUrl $collectionsUrl -now $now
     }
     process
     {
-        if (!$disableExtraFeatures)
+        if (!$DisableExtraFeatures)
         {
-            return Search-CosmosDbRecordsWithExtraFeatures -resourceGroup $resourceGroup -database $database -container $container -collection $collection -query $query -parameters $parameters -subscription $subscription
+            return Search-CosmosDbRecordsWithExtraFeatures -ResourceGroup $ResourceGroup -Database $Database -Container $Container -Collection $Collection -Query $Query -Parameters $Parameters -SubscriptionId $SubscriptionId
         }
 
         try 
         {
             $body = @{
-                query = $query;
-                parameters = $parameters;
+                query = $Query;
+                parameters = $Parameters;
             } | ConvertTo-Json
 
-            $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -isQuery $true -contentType "application/query+json"
+            $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -isQuery $true -contentType "application/Query+json"
             $headers["x-ms-documentdb-query-enablecrosspartition"] = "true"
 
             Invoke-WebRequestWithContinuation -verb $POST_VERB -url $url -Body $body -Headers $headers
@@ -273,30 +449,30 @@ Function Search-CosmosDbRecords([string]$resourceGroup, [string]$database, [stri
     }
 }
 
-Function Search-CosmosDbRecordsWithExtraFeatures([string]$resourceGroup, [string]$database, [string]$container, [string]$collection, [string]$query, $parameters, [string]$subscription)
+Function Search-CosmosDbRecordsWithExtraFeatures([string]$ResourceGroup, [string]$Database, [string]$Container, [string]$Collection, [string]$Query, $Parameters, [string]$SubscriptionId)
 {
     begin
     {
-        $baseUrl=Get-BaseDatabaseUrl $database
-        $collectionsUrl=Get-CollectionsUrl $container $collection
+        $baseUrl=Get-BaseDatabaseUrl $Database
+        $collectionsUrl=Get-CollectionsUrl $Container $Collection
         $docsUrl="$collectionsUrl/$DOCS_TYPE"
 
         $url="$baseUrl/$docsUrl"
 
         $now=Get-Time
 
-        $encodedAuthString=Get-AuthorizationHeader -resourceGroup $resourceGroup -subscription $subscription -database $database -verb $POST_VERB -resourceType $DOCS_TYPE -resourceUrl $collectionsUrl -now $now
+        $encodedAuthString=Get-AuthorizationHeader -ResourceGroup $ResourceGroup -SubscriptionId $SubscriptionId -Database $Database -verb $POST_VERB -resourceType $DOCS_TYPE -resourceUrl $collectionsUrl -now $now
     }
     process
     {
         try 
         {
             $body = @{
-                query = $query;
-                parameters = $parameters;
+                query = $Query;
+                parameters = $Parameters;
             } | ConvertTo-Json
 
-            $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -isQuery $true -contentType "application/query+json"
+            $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -isQuery $true -contentType "application/Query+json"
             $headers += @{
                 "x-ms-documentdb-query-enablecrosspartition" = "true";
                 "x-ms-cosmos-supported-query-features" = "NonValueAggregate, Aggregate, Distinct, MultipleOrderBy, OffsetAndLimit, OrderBy, Top, CompositeAggregate, GroupBy, MultipleAggregates";
@@ -315,8 +491,8 @@ Function Search-CosmosDbRecordsWithExtraFeatures([string]$resourceGroup, [string
 
             $rewrittenQuery = $response.QueryInfo.RewrittenQuery
             $body = @{
-                query = if ($rewrittenQuery) { $rewrittenQuery } else { $query };
-                parameters = $parameters;
+                query = if ($rewrittenQuery) { $rewrittenQuery } else { $Query };
+                parameters = $Parameters;
             } | ConvertTo-Json
 
             Invoke-WebRequestWithContinuation -verb $POST_VERB -url $url -Body $body -Headers $headers
@@ -328,29 +504,87 @@ Function Search-CosmosDbRecordsWithExtraFeatures([string]$resourceGroup, [string
     }
 }
 
-Function New-CosmosDbRecord([parameter(ValueFromPipeline)]$object, [string]$resourceGroup, [string]$database, [string]$container, [string]$collection, [string]$subscription="", [string]$partitionKey="", $getPartitionKeyBlock=$null)
-{
+<#
+.SYNOPSIS
+    Creates a single DB record, returns the HTTP response of the operation
+    
+.PARAMETER Object
+    Azure Resource Group of the database
+.PARAMETER ResourceGroup
+    Azure Resource Group of the database
+.PARAMETER Database
+    The database name
+.PARAMETER Container
+    The container name inside the database
+.PARAMETER Collection
+    The collection name inside the container
+.PARAMETER SubscriptionId
+    [Optional] The Azure Subscription Id. Default is the same as `az`.
+.PARAMETER PartitionKey
+    [Optional] The record's partition key. Default is the `id` property of `Object`. Required if using a custom partition strategy.
+.PARAMETER GetPartitionKeyBlock
+    [Optional] Callback to get the partition key from the input object. Default is the `id` property of `Object`. Required if using a custom partition strategy.
+
+.EXAMPLE
+    $> New-CosmosDbRecord -Object @{ id = 1234; key = value } ...
+
+    StatusCode        : 201
+    StatusDescription : Created
+    Content           : { ... }
+    RawContent        : ...
+    Forms             : {}
+    Headers           : { ... }
+    Images            : {}
+    InputFields       : {}
+    Links             : {}
+    ParsedHtml        : mshtml.HTMLDocumentClass
+    RawContentLength  : 257
+.EXAMPLE
+    $> New-CosmosDbRecord -Object @{ id = 1234; key = value } ...
+
+    id  : 1234
+    key : value
+.EXAMPLE
+    $> $record | New-CosmosDbRecord -PartitionKey $record.PartitionKey ...
+.EXAMPLE
+    $> $recordList | New-CosmosDbRecord -GetPartitionKeyBlock { param($r) $r.PartitionKey } ...
+#>
+Function New-CosmosDbRecord
+{ 
+    [CmdletBinding(DefaultParameterSetName = 'ExplicitPartitionKey')]
+    param
+    (
+        [parameter(ValueFromPipeline=$true, Mandatory=$true)]$Object,
+        [parameter(Mandatory=$true)][string]$ResourceGroup, 
+        [parameter(Mandatory=$true)][string]$Database, 
+        [parameter(Mandatory=$true)][string]$Container, 
+        [parameter(Mandatory=$true)][string]$Collection, 
+        [parameter(Mandatory=$false)][string]$SubscriptionId="", 
+        [parameter(Mandatory=$false, ParameterSetName="ExplicitPartitionKey")][string]$PartitionKey="", 
+        [parameter(Mandatory=$false, ParameterSetName="ParttionKeyCallback")]$GetPartitionKeyBlock=$null
+    )
+
     begin 
     {
-        $baseUrl=Get-BaseDatabaseUrl $database
-        $collectionsUrl=Get-CollectionsUrl $container $collection
+        $baseUrl=Get-BaseDatabaseUrl $Database
+        $collectionsUrl=Get-CollectionsUrl $Container $Collection
         $docsUrl="$collectionsUrl/$DOCS_TYPE"
 
         $url="$baseUrl/$docsUrl"
 
         $now=Get-Time
 
-        $encodedAuthString=Get-AuthorizationHeader -resourceGroup $resourceGroup -subscription $subscription -database $database -verb $POST_VERB -resourceType $DOCS_TYPE -resourceUrl $collectionsUrl -now $now
+        $encodedAuthString=Get-AuthorizationHeader -ResourceGroup $ResourceGroup -SubscriptionId $SubscriptionId -Database $Database -verb $POST_VERB -resourceType $DOCS_TYPE -resourceUrl $collectionsUrl -now $now
     }
     process
     {
         try 
         {
-            $requestPartitionKey = if ($partitionKey) { $partitionKey } elseif ($getPartitionKeyBlock) { Invoke-Command -ScriptBlock $getPartitionKeyBlock -ArgumentList $object } else { $object.Id }
+            $requestPartitionKey = if ($PartitionKey) { $PartitionKey } elseif ($GetPartitionKeyBlock) { Invoke-Command -ScriptBlock $GetPartitionKeyBlock -ArgumentList $Object } else { $Object.Id }
 
-            $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -partitionKey $requestPartitionKey
+            $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -PartitionKey $requestPartitionKey
 
-            $body = $object | ConvertTo-Json
+            $body = $Object | ConvertTo-Json
 
             Invoke-WebRequest -Method $POST_VERB -Uri $url -Body $body -Headers $headers
         }
@@ -361,29 +595,87 @@ Function New-CosmosDbRecord([parameter(ValueFromPipeline)]$object, [string]$reso
     }
 }
 
-Function Update-CosmosDbRecord([parameter(ValueFromPipeline)]$object, [string]$resourceGroup, [string]$database, [string]$container, [string]$collection, [string]$subscription="", [string]$partitionKey="", $getPartitionKeyBlock=$null)
+<#
+.SYNOPSIS
+    Updates a single DB record, returns the HTTP response of the operation
+    
+.PARAMETER Object
+    Azure Resource Group of the database
+.PARAMETER ResourceGroup
+    Azure Resource Group of the database
+.PARAMETER Database
+    The database name
+.PARAMETER Container
+    The container name inside the database
+.PARAMETER Collection
+    The collection name inside the container
+.PARAMETER SubscriptionId
+    [Optional] The Azure Subscription Id. Default is the same as `az`.
+.PARAMETER PartitionKey
+    [Optional] The record's partition key. Default is the `id` property of `Object`. Required if using a custom partition strategy.
+.PARAMETER GetPartitionKeyBlock
+    [Optional] Callback to get the partition key from the input object. Default is the `id` property of `Object`. Required if using a custom partition strategy.
+
+.EXAMPLE
+    $> Update-CosmosDbRecord -Object @{ id = 1234; key = value } ...
+
+    StatusCode        : 200
+    StatusDescription : Ok
+    Content           : { ... }
+    RawContent        : ...
+    Forms             : {}
+    Headers           : { ... }
+    Images            : {}
+    InputFields       : {}
+    Links             : {}
+    ParsedHtml        : mshtml.HTMLDocumentClass
+    RawContentLength  : 271
+.EXAMPLE
+    $> Update-CosmosDbRecord -Object @{ id = 1234; key = value } ... | Get-CosmosDbRecordContent
+
+    id  : 1234
+    key : value
+.EXAMPLE
+    $> $record | Update-CosmosDbRecord -PartitionKey $record.PartitionKey ...
+.EXAMPLE
+    $> $recordList | Update-CosmosDbRecord -GetPartitionKeyBlock { param($r) $r.PartitionKey } ...
+#>
+Function Update-CosmosDbRecord
 {
+    [CmdletBinding(DefaultParameterSetName = 'ExplicitPartitionKey')]
+    param
+    (
+        [parameter(ValueFromPipeline=$true, Mandatory=$true)]$Object,
+        [parameter(Mandatory=$true)][string]$ResourceGroup, 
+        [parameter(Mandatory=$true)][string]$Database, 
+        [parameter(Mandatory=$true)][string]$Container, 
+        [parameter(Mandatory=$true)][string]$Collection, 
+        [parameter(Mandatory=$false)][string]$SubscriptionId="", 
+        [parameter(Mandatory=$false, ParameterSetName="ExplicitPartitionKey")][string]$PartitionKey="", 
+        [parameter(Mandatory=$false, ParameterSetName="ParttionKeyCallback")]$GetPartitionKeyBlock=$null
+    )
+
     begin 
     {
-        $baseUrl=Get-BaseDatabaseUrl $database
+        $baseUrl=Get-BaseDatabaseUrl $Database
     }
     process
     {
         try 
         {
-            $documentUrl=Get-DocumentsUrl $container $collection $object.id
+            $documentUrl=Get-DocumentsUrl $Container $Collection $Object.id
 
             $url="$baseUrl/$documentUrl"
     
             $now=Get-Time
             
-            $encodedAuthString=Get-AuthorizationHeader -resourceGroup $resourceGroup -subscription $subscription -database $database -verb $PUT_VERB -resourceType $DOCS_TYPE -resourceUrl $documentUrl -now $now
+            $encodedAuthString=Get-AuthorizationHeader -ResourceGroup $ResourceGroup -SubscriptionId $SubscriptionId -Database $Database -verb $PUT_VERB -resourceType $DOCS_TYPE -resourceUrl $documentUrl -now $now
             
-            $requestPartitionKey = if ($partitionKey) { $partitionKey } elseif ($getPartitionKeyBlock) { Invoke-Command -ScriptBlock $getPartitionKeyBlock -ArgumentList $object } else { $object.Id }
+            $requestPartitionKey = if ($PartitionKey) { $PartitionKey } elseif ($GetPartitionKeyBlock) { Invoke-Command -ScriptBlock $GetPartitionKeyBlock -ArgumentList $Object } else { $Object.Id }
 
-            $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -partitionKey $requestPartitionKey
+            $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -PartitionKey $requestPartitionKey
 
-            $body = $object | ConvertTo-Json
+            $body = $Object | ConvertTo-Json
 
             Invoke-WebRequest -Method $PUT_VERB -Uri $url -Body $body -Headers $headers
         }
@@ -394,26 +686,67 @@ Function Update-CosmosDbRecord([parameter(ValueFromPipeline)]$object, [string]$r
     }
 }
 
-Function Remove-CosmosDbRecord([string]$resourceGroup, [string]$database, [string]$container, [string]$collection, [string]$id, [string]$subscription="", [string]$partitionKey="")
+<#
+.SYNOPSIS
+    Deletes a single DB record, returns the HTTP response of the lookup
+    
+.PARAMETER ResourceGroup
+    Azure Resource Group of the database
+.PARAMETER Database
+    The database name
+.PARAMETER Container
+    The container name inside the database
+.PARAMETER Collection
+    The collection name inside the container
+.PARAMETER RecordId
+    The record's id
+.PARAMETER SubscriptionId
+    [Optional] The Azure Subscription Id. Default is the same as `az`.
+.PARAMETER PartitionKey
+    [Optional] The record's partition key. Default is `RecordId`. Required if using a custom partition strategy.
+
+.EXAMPLE
+    $> Remove-CosmosDbRecord ...
+
+    StatusCode        : 204
+    StatusDescription : No Content
+    Content           :
+    RawContent        : ...
+    Forms             : {}
+    Headers           : { ... }
+    Images            : {}
+    InputFields       : {}
+    Links             : {}
+    ParsedHtml        : mshtml.HTMLDocumentClass
+    RawContentLength  : 0
+#>
+Function Remove-CosmosDbRecord(
+    [parameter(Mandatory=$true)][string]$ResourceGroup,
+    [parameter(Mandatory=$true)][string]$Database, 
+    [parameter(Mandatory=$true)][string]$Container,
+    [parameter(Mandatory=$true)][string]$Collection, 
+    [parameter(Mandatory=$true)][string]$RecordId, 
+    [parameter(Mandatory=$false)][string]$SubscriptionId="", 
+    [parameter(Mandatory=$false)][string]$PartitionKey="")
 {
     begin
     {
-        $baseUrl=Get-BaseDatabaseUrl $database
-        $documentUrl=Get-DocumentsUrl $container $collection $id
+        $baseUrl=Get-BaseDatabaseUrl $Database
+        $documentUrl=Get-DocumentsUrl $Container $Collection $RecordId
 
         $url="$baseUrl/$documentUrl"
 
         $now=Get-Time
 
-        $encodedAuthString=Get-AuthorizationHeader -resourceGroup $resourceGroup -subscription $subscription -database $database -verb $DELETE_VERB -resourceType $DOCS_TYPE -resourceUrl $documentUrl -now $now
+        $encodedAuthString=Get-AuthorizationHeader -ResourceGroup $ResourceGroup -SubscriptionId $SubscriptionId -Database $Database -verb $DELETE_VERB -resourceType $DOCS_TYPE -resourceUrl $documentUrl -now $now
 
-        $requestPartitionKey = if ($partitionKey) { $partitionKey } else { $id }
+        $requestPartitionKey = if ($PartitionKey) { $PartitionKey } else { $RecordId }
     }
     process
     {
         try 
         {
-            $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -partitionKey $requestPartitionKey
+            $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -PartitionKey $requestPartitionKey
 
             Invoke-WebRequest -Method $DELETE_VERB -Uri $url -Headers $headers
         }
@@ -424,14 +757,14 @@ Function Remove-CosmosDbRecord([string]$resourceGroup, [string]$database, [strin
     }
 }
 
-Function Get-CosmosDbRecordContent([parameter(ValueFromPipeline)]$recordResponse)
+Function Get-CosmosDbRecordContent([parameter(ValueFromPipeline)]$RecordResponse)
 {   
     process
     {
-        $code=[int]$recordResponse.StatusCode
+        $code=[int]$RecordResponse.StatusCode
         if ($code -lt 300)
         {
-            $recordResponse.Content | ConvertFrom-Json
+            $RecordResponse.Content | ConvertFrom-Json
         }
         elseif ($code -eq 404)
         {
@@ -443,7 +776,7 @@ Function Get-CosmosDbRecordContent([parameter(ValueFromPipeline)]$recordResponse
         }
         else
         {
-            $message = Get-RequestErrorDetails $recordResponse | ConvertFrom-Json | % Message
+            $message = Get-RequestErrorDetails $RecordResponse | ConvertFrom-Json | % Message
             throw "Request failed with status code $code with message`n`n$message"
         }
     }
