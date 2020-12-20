@@ -474,11 +474,11 @@ Function Search-CosmosDbRecordsWithExtraFeatures([string]$ResourceGroup, [string
 
             $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -isQuery $true -contentType "application/Query+json"
             $headers += @{
-                "x-ms-documentdb-Query-enablecrosspartition" = "true";
-                "x-ms-cosmos-supported-Query-features" = "NonValueAggregate, Aggregate, Distinct, MultipleOrderBy, OffsetAndLimit, OrderBy, Top, CompositeAggregate, GroupBy, MultipleAggregates";
-                "x-ms-documentdb-Query-enable-scan" = "true";
-                "x-ms-documentdb-Query-parallelizecrosspartitionquery" = "true";
-                "x-ms-cosmos-is-Query-plan-request" = "True";
+                "x-ms-documentdb-query-enablecrosspartition" = "true";
+                "x-ms-cosmos-supported-query-features" = "NonValueAggregate, Aggregate, Distinct, MultipleOrderBy, OffsetAndLimit, OrderBy, Top, CompositeAggregate, GroupBy, MultipleAggregates";
+                "x-ms-documentdb-query-enable-scan" = "true";
+                "x-ms-documentdb-query-parallelizecrosspartitionquery" = "true";
+                "x-ms-cosmos-is-query-plan-request" = "True";
             }
 
             $response=Invoke-WebRequestWithContinuation -verb $POST_VERB -url $url -Body $body -Headers $headers | Get-CosmosDbRecordContent
@@ -487,7 +487,7 @@ Function Search-CosmosDbRecordsWithExtraFeatures([string]$ResourceGroup, [string
                 "x-ms-documentdb-partitionkeyrangeid" = "0";
             }
 
-            $headers.Remove("x-ms-cosmos-is-Query-plan-request")
+            $headers.Remove("x-ms-cosmos-is-query-plan-request")
 
             $rewrittenQuery = $response.QueryInfo.RewrittenQuery
             $body = @{
