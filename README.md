@@ -28,9 +28,9 @@ $record = Get-CosmosDbRecord ...
 | Database | The database name | Yes |
 | Container | The container name inside the database | Yes |
 | Collection | The collection name inside the container | Yes |
-| Id | The resource id | Yes |
-| Subscription | The Azure Subscription Id | No - defaults to whatever `az` defaults to |
-| PartitionKey | The partition key of the resource | No - defaults to `Id`<br/>Must be set if the collection uses a different parition scheme |
+| RecordId | The resource id | Yes |
+| SubscriptionId | The Azure Subscription Id | No - defaults to whatever `az` defaults to |
+| PartitionKey | The partition key of the resource | No - defaults to `RecordId`<br/>Must be set if the collection uses a different parition scheme |
 
 ### Get-AllCosmosDbRecords
 
@@ -52,7 +52,7 @@ $records = Get-AllCosmosDbRecords ...
 | Database | The database name | Yes |
 | Container | The container name inside the database | Yes |
 | Collection | The collection name inside the container | Yes |
-| Subscription | The Azure Subscription Id | No - defaults to whatever `az` defaults to |
+| SubscriptionId | The Azure Subscription Id | No - defaults to whatever `az` defaults to |
 
 ### Search-CosmosDbRecords
 
@@ -97,7 +97,7 @@ $records = Search-CosmosDbRecords -Query "SELECT * FROM c WHERE c.Id = @id and c
 | Collection | The collection name inside the container | Yes |
 | Query | The query as a string with optional parameters | Yes |
 | Parameters | Parameters values used in the query. Accepts an array of `name-value` pairs or a hashtable | No |
-| Subscription | The Azure Subscription Id | No - defaults to whatever `az` defaults to |
+| SubscriptionId | The Azure Subscription Id | No - defaults to whatever `az` defaults to |
 | DisableExtraFeatures | Disables extra query features required to perform operations like aggregates, `TOP`, or `DISTINCT`. Should be used in case the support for these operations has a bug :smile: See the Cosmos DB docs [here](https://docs.microsoft.com/en-us/rest/api/cosmos-db/querying-cosmosdb-resources-using-the-rest-api#queries-that-cannot-be-served-by-gateway). | No - defaults to false |
 
 ### New-CosmosDbRecord
@@ -135,7 +135,7 @@ Get-AllCosmosDbRecords -Collection "Collection1" ...
 | Database | The database name | Yes |
 | Container | The container name inside the database | Yes |
 | Collection | The collection name inside the container | Yes |
-| Subscription | The Azure Subscription Id | No - defaults to whatever `az` defaults to |
+| SubscriptionId | The Azure Subscription Id | No - defaults to whatever `az` defaults to |
 | PartitionKey | The partition key of the resource | No - defaults to `Id`<br/>Must be set if the collection uses a different parition scheme |
 | GetPartitionKeyBlock | Callback to get the `PartitionKey` from `Object` - useful in pipelines | No - used only if `PartitionKey` is not set |
 
@@ -178,7 +178,7 @@ $records | Update-CosmosDbRecord ...
 | Database | The database name | Yes |
 | Container | The container name inside the database | Yes |
 | Collection | The collection name inside the container | Yes |
-| Subscription | The Azure Subscription Id | No - defaults to whatever `az` defaults to |
+| SubscriptionId | The Azure Subscription Id | No - defaults to whatever `az` defaults to |
 | PartitionKey | The partition key of the resource | No - defaults to `Id`<br/>Must be set if the collection uses a different parition scheme |
 | GetPartitionKeyBlock | Callback to get the `PartitionKey` from `Object` - useful in pipelines | No - used only if `PartitionKey` is not set |
 
@@ -200,6 +200,6 @@ Remove-CosmosDbRecord ...
 | Database | The database name | Yes |
 | Container | The container name inside the database | Yes |
 | Collection | The collection name inside the container | Yes |
-| Id | The resource id | Yes |
-| Subscription | The Azure Subscription Id | No - defaults to whatever `az` defaults to |
+| RecordId | The resource id | Yes |
+| SubscriptionId | The Azure Subscription Id | No - defaults to whatever `az` defaults to |
 | PartitionKey | The partition key of the resource | No - defaults to `Id`<br/>Must be set if the collection uses a different parition scheme |
