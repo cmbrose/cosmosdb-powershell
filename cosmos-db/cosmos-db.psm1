@@ -438,7 +438,7 @@ Function Search-CosmosDbRecords(
             } | ConvertTo-Json
 
             $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -isQuery $true -contentType "application/Query+json"
-            $headers["x-ms-documentdb-Query-enablecrosspartition"] = "true"
+            $headers["x-ms-documentdb-query-enablecrosspartition"] = "true"
 
             Invoke-WebRequestWithContinuation -verb $POST_VERB -url $url -Body $body -Headers $headers
         }
