@@ -405,9 +405,9 @@ Function Search-CosmosDbRecords(
     [parameter(Mandatory=$true)][string]$Container, 
     [parameter(Mandatory=$true)][string]$Collection,
     [parameter(Mandatory=$true)][string]$Query,
-    [parameter(Mandatory=$true)]$Parameters=$null,
-    [parameter(Mandatory=$true)][string]$SubscriptionId="",
-    [parameter(Mandatory=$true)][switch]$DisableExtraFeatures=$false)
+    [parameter(Mandatory=$false)]$Parameters=$null,
+    [parameter(Mandatory=$false)][string]$SubscriptionId="",
+    [parameter(Mandatory=$false)][switch]$DisableExtraFeatures=$false)
 {
     begin
     {
