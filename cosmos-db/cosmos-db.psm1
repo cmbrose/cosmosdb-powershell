@@ -152,18 +152,28 @@ Function Get-RequestErrorDetails($response)
     $reader.ReadToEnd();
 }
 
-Function Invoke-WebRequestWithContinuation([string]$verb, [string]$url, $headers, $body=$null)
+Function Invoke-CosmosDbApiRequest([string]$verb, [string]$url, $headers, $body=$null)
+{
+    if ($body)
+    {
+        $body = $body | ConvertTo-Json -Depth 100
+    }
+
+    Invoke-WebRequest -Method $verb -Uri $url -Body $body -Headers $headers
+}
+
+Function Invoke-CosmosDbApiRequestWithContinuation([string]$verb, [string]$url, $headers, $body=$null)
 {
     process
     {
-        $response = Invoke-WebRequest -Method $verb -Uri $url -Body $body -Headers $headers
+        $response = Invoke-CosmosDbApiRequest -Verb $verb -Url $url -Body $body -Headers $headers
         $response
 
         while ($response.Headers["x-ms-continuation"])
         {
             $headers["x-ms-continuation"] = $response.Headers["x-ms-continuation"];
 
-            $response = Invoke-WebRequest -Method $verb -Uri $url -Body $body -Headers $headers
+            $response = Invoke-CosmosDbApiRequest -Verb $verb -Url $url -Body $body -Headers $headers
             $response
         }   
     }
@@ -245,7 +255,7 @@ Function Get-CosmosDbRecord(
         {
             $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -PartitionKey $requestPartitionKey -isQuery $true
 
-            Invoke-WebRequest -Method $GET_VERB -Uri $url -Headers $headers
+            Invoke-CosmosDbApiRequest -Verb $GET_VERB -Url $url -Headers $headers
         }
         catch [System.Net.WebException] 
         {
@@ -326,7 +336,7 @@ Function Get-AllCosmosDbRecords(
         {
             $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -isQuery $true
 
-            Invoke-WebRequestWithContinuation -verb $GET_VERB -url $url -Headers $headers
+            Invoke-CosmosDbApiRequestWithContinuation -verb $GET_VERB -url $url -Headers $headers
         }
         catch [System.Net.WebException] 
         {
@@ -435,12 +445,12 @@ Function Search-CosmosDbRecords(
             $body = @{
                 query = $Query;
                 parameters = $Parameters;
-            } | ConvertTo-Json
+            }
 
             $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -isQuery $true -contentType "application/Query+json"
             $headers["x-ms-documentdb-query-enablecrosspartition"] = "true"
 
-            Invoke-WebRequestWithContinuation -verb $POST_VERB -url $url -Body $body -Headers $headers
+            Invoke-CosmosDbApiRequestWithContinuation -verb $POST_VERB -url $url -Body $body -Headers $headers
         }
         catch [System.Net.WebException] 
         {
@@ -470,7 +480,7 @@ Function Search-CosmosDbRecordsWithExtraFeatures([string]$ResourceGroup, [string
             $body = @{
                 query = $Query;
                 parameters = $Parameters;
-            } | ConvertTo-Json
+            }
 
             $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -isQuery $true -contentType "application/Query+json"
             $headers += @{
@@ -481,7 +491,7 @@ Function Search-CosmosDbRecordsWithExtraFeatures([string]$ResourceGroup, [string
                 "x-ms-cosmos-is-query-plan-request" = "True";
             }
 
-            $response=Invoke-WebRequestWithContinuation -verb $POST_VERB -url $url -Body $body -Headers $headers | Get-CosmosDbRecordContent
+            $response=Invoke-CosmosDbApiRequest -verb $POST_VERB -url $url -Body $body -Headers $headers | Get-CosmosDbRecordContent
 
             $headers += @{
                 "x-ms-documentdb-partitionkeyrangeid" = "0";
@@ -493,9 +503,9 @@ Function Search-CosmosDbRecordsWithExtraFeatures([string]$ResourceGroup, [string
             $body = @{
                 query = if ($rewrittenQuery) { $rewrittenQuery } else { $Query };
                 parameters = $Parameters;
-            } | ConvertTo-Json
+            }
 
-            Invoke-WebRequestWithContinuation -verb $POST_VERB -url $url -Body $body -Headers $headers
+            Invoke-CosmosDbApiRequestWithContinuation -verb $POST_VERB -url $url -Body $body -Headers $headers
         }
         catch [System.Net.WebException] 
         {
@@ -584,9 +594,7 @@ Function New-CosmosDbRecord
 
             $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -PartitionKey $requestPartitionKey
 
-            $body = $Object | ConvertTo-Json
-
-            Invoke-WebRequest -Method $POST_VERB -Uri $url -Body $body -Headers $headers
+            Invoke-CosmosDbApiRequest -Verb $POST_VERB -Url $url -Body $Object -Headers $headers
         }
         catch [System.Net.WebException] 
         {
@@ -675,9 +683,7 @@ Function Update-CosmosDbRecord
 
             $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -PartitionKey $requestPartitionKey
 
-            $body = $Object | ConvertTo-Json
-
-            Invoke-WebRequest -Method $PUT_VERB -Uri $url -Body $body -Headers $headers
+            Invoke-CosmosDbApiRequest -Verb $PUT_VERB -Url $url -Body $Object -Headers $headers
         }
         catch [System.Net.WebException] 
         {
@@ -748,7 +754,7 @@ Function Remove-CosmosDbRecord(
         {
             $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -PartitionKey $requestPartitionKey
 
-            Invoke-WebRequest -Method $DELETE_VERB -Uri $url -Headers $headers
+            Invoke-CosmosDbApiRequest -Verb $DELETE_VERB -Url $url -Headers $headers
         }
         catch [System.Net.WebException] 
         {
@@ -782,6 +788,11 @@ Function Get-CosmosDbRecordContent([parameter(ValueFromPipeline)]$RecordResponse
     }
 }
 
+Function Use-CosmosDbFiddlerDebugging()
+{
+    $env:AZURE_CLI_DISABLE_CONNECTION_VERIFICATION=1
+}
+
 Export-ModuleMember -Function "Get-CosmosDbRecord"
 Export-ModuleMember -Function "Get-AllCosmosDbRecords"
 
@@ -794,3 +805,5 @@ Export-ModuleMember -Function "Update-CosmosDbRecord"
 Export-ModuleMember -Function "Remove-CosmosDbRecord"
 
 Export-ModuleMember -Function "Get-CosmosDbRecordContent"
+
+Export-ModuleMember -Function "Use-CosmosDbFiddlerDebugging"
