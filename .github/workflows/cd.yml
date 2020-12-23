@@ -27,6 +27,6 @@ jobs:
       - name: Update Release Tag
         shell: pwsh
         run: |
-          $version = (import-module cosmos-db\cosmos-db.psm1 -PassThru | % Version).ToString()
+          $version = (import-module $GITHUB_WORKSPACE\cosmos-db\cosmos-db.psm1 -PassThru | % Version).ToString()
           git tag "v$version"
           git push origin --tags
