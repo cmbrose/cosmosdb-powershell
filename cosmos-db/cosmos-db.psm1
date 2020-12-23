@@ -1,6 +1,7 @@
 $DB_TYPE="dbs" # aka Container
 $COLLS_TYPE="colls"
 $DOCS_TYPE="docs"
+$PARTITIONKEYRANGE_TYPE="pkranges"
 
 $GET_VERB="get"
 $POST_VERB="post"
@@ -11,6 +12,7 @@ $API_VERSION="2018-12-31"
 
 $MASTER_KEY_CACHE = @{}
 $SIGNATURE_HASH_CACHE = @{}
+$PARTITION_KEY_RANGE_CACHE = @{}
 
 Function Get-BaseDatabaseUrl([string]$Database)
 {
@@ -32,14 +34,38 @@ Function Get-Time()
     Get-Date ([datetime]::UtcNow) -Format "R"
 }
 
-Function Get-Base64Masterkey([string]$ResourceGroup, [string]$Database, [string]$SubscriptionId)
+Function Get-CacheValue([string]$key, [hashtable]$cache)
 {
-    $cacheKey = "$SubscriptionId/$ResourceGroup/$Database"
-    $cacheEntry = $MASTER_KEY_CACHE[$cacheKey]
+    if ($env:COSMOS_DB_FLAG_ENABLE_CACHING -eq 0)
+    {
+        return $null
+    }
+
+    $cacheEntry = $cache[$key]
 
     if ($cacheEntry -and ($cacheEntry.Expiration -gt [datetime]::UtcNow))
     {
         return $cacheEntry.Value
+    }
+
+    return $null
+}
+
+Function Set-CacheValue([string]$key, $value, [hashtable]$cache, [int]$expirationHours)
+{
+    $cache[$key] = @{ 
+        Expiration = [datetime]::UtcNow.AddHours($expirationHours);
+        Value = $value 
+    }
+}
+
+Function Get-Base64Masterkey([string]$ResourceGroup, [string]$Database, [string]$SubscriptionId)
+{
+    $cacheKey = "$SubscriptionId/$ResourceGroup/$Database"
+    $cacheResult = Get-CacheValue -Key $cacheKey -Cache $MASTER_KEY_CACHE
+    if ($cacheResult)
+    {
+        return $cacheResult
     }
 
     if ($SubscriptionId)
@@ -51,24 +77,23 @@ Function Get-Base64Masterkey([string]$ResourceGroup, [string]$Database, [string]
         $masterKey = az cosmosdb keys list --name $Database --query primaryMasterKey --output tsv --resource-group $ResourceGroup    
     }
 
-    $MASTER_KEY_CACHE[$cacheKey] = @{ Expiration = [datetime]::UtcNow.AddHours(6); Value = $masterKey }
+    Set-CacheValue -Key $cacheKey -Value $masterKey -Cache $MASTER_KEY_CACHE -ExpirationHours 6
 
     $masterKey
 }
 
 Function Get-Signature([string]$verb, [string]$resourceType, [string]$resourceUrl, [string]$now)
 {
-    ((@($verb, $DOCS_TYPE, $resourceUrl, $now, "") -join "`n") + "`n").ToLower()
+    ((@($verb, $resourceType, $resourceUrl, $now, "") -join "`n") + "`n").ToLower()
 }
 
 Function Get-Base64EncryptedSignatureHash([string]$masterKey, [string]$signature)
 {
     $cacheKey = "$masterKey/$signature"
-    $cacheEntry = $SIGNATURE_HASH_CACHE[$cacheKey]
-
-    if ($cacheEntry -and $cacheEntry.Expiration -gt [datetime]::UtcNow)
+    $cacheResult = Get-CacheValue -Key $cacheKey -Cache $SIGNATURE_HASH_CACHE
+    if ($cacheResult)
     {
-        return $cacheEntry.Value
+        return $cacheResult
     }
 
     $keyBytes=[System.Convert]::FromBase64String($masterKey)
@@ -77,7 +102,7 @@ Function Get-Base64EncryptedSignatureHash([string]$masterKey, [string]$signature
     $hashBytes=$hasher.ComputeHash($sigBinary)
     $base64Hash=[System.Convert]::ToBase64String($hashBytes)
 
-    $SIGNATURE_HASH_CACHE[$cacheKey] = @{ Expiration = [datetime]::UtcNow.AddHours(1); Value = $base64Hash }
+    Set-CacheValue -Key $cacheKey -Value $base64Hash -Cache $SIGNATURE_HASH_CACHE -ExpirationHours 1
 
     $base64Hash
 }
@@ -176,6 +201,59 @@ Function Invoke-CosmosDbApiRequestWithContinuation([string]$verb, [string]$url, 
             $response = Invoke-CosmosDbApiRequest -Verb $verb -Url $url -Body $body -Headers $headers
             $response
         }   
+    }
+}
+
+Function Get-PartitionKeyRanges
+(
+    [parameter(Mandatory=$true)][string]$ResourceGroup,
+    [parameter(Mandatory=$true)][string]$Database, 
+    [parameter(Mandatory=$true)][string]$Container,
+    [parameter(Mandatory=$true)][string]$Collection,
+    [parameter(Mandatory=$true)][string]$SubscriptionId
+)
+{
+    $baseUrl = Get-BaseDatabaseUrl $Database
+    $collectionsUrl=Get-CollectionsUrl $Container $Collection
+    $pkRangeUrl="$collectionsUrl/$PARTITIONKEYRANGE_TYPE"
+
+    $url = "$baseUrl/$pkRangeUrl"
+
+    $cacheKey = $url
+    $cacheResult = Get-CacheValue -Key $cacheKey -Cache $PARTITION_KEY_RANGE_CACHE
+    if ($cacheResult)
+    {
+        return $cacheResult
+    }
+
+    $now = Get-Time
+
+    $encodedAuthString = Get-AuthorizationHeader -ResourceGroup $ResourceGroup -SubscriptionId $SubscriptionId -Database $Database -verb $GET_VERB -resourceType $PARTITIONKEYRANGE_TYPE -resourceUrl $collectionsUrl -now $now
+
+    $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -PartitionKey $requestPartitionKey
+    $headers["x-ms-documentdb-query-enablecrosspartition"] = "true"
+
+    $response = Invoke-CosmosDbApiRequest -Verb $GET_VERB -Url $url -Headers $headers | Get-CosmosDbRecordContent
+
+    $ranges = $response.partitionKeyRanges
+
+    Set-CacheValue -Key $cacheKey -Value $ranges -Cache $PARTITION_KEY_RANGE_CACHE -ExpirationHours 6
+
+    $ranges
+}
+
+Function Get-FilteredPartitionKeyRangesForQuery($allRanges, $queryRanges)
+{
+    $allRanges | where-object { 
+        $partitionMin = $_.minInclusive
+        $partitionMax = $_.maxExclusive
+
+        $queryRanges | where-object {
+            $queryMin = $_.min
+            $queryMax = $_.max
+
+            !(($partitionMax -le $queryMin) -or ($partitionMin -gt $queryMax))
+        }
     }
 }
 
@@ -472,6 +550,8 @@ Function Search-CosmosDbRecordsWithExtraFeatures([string]$ResourceGroup, [string
         $now=Get-Time
 
         $encodedAuthString=Get-AuthorizationHeader -ResourceGroup $ResourceGroup -SubscriptionId $SubscriptionId -Database $Database -verb $POST_VERB -resourceType $DOCS_TYPE -resourceUrl $collectionsUrl -now $now
+
+        $allPartitionKeyRanges = Get-PartitionKeyRanges -ResourceGroup $ResourceGroup -Database $Database -Container $Container -Collection $Collection -SubscriptionId $SubscriptionId
     }
     process
     {
@@ -491,21 +571,34 @@ Function Search-CosmosDbRecordsWithExtraFeatures([string]$ResourceGroup, [string
                 "x-ms-cosmos-is-query-plan-request" = "True";
             }
 
-            $response=Invoke-CosmosDbApiRequest -verb $POST_VERB -url $url -Body $body -Headers $headers | Get-CosmosDbRecordContent
-
-            $headers += @{
-                "x-ms-documentdb-partitionkeyrangeid" = "0";
-            }
+            $response = Invoke-CosmosDbApiRequest -verb $POST_VERB -url $url -Body $body -Headers $headers | Get-CosmosDbRecordContent
+            
+            $rewrittenQuery = $response.QueryInfo.RewrittenQuery
+            $searchQuery = if ($rewrittenQuery) { $rewrittenQuery } else { $Query };
 
             $headers.Remove("x-ms-cosmos-is-query-plan-request")
 
-            $rewrittenQuery = $response.QueryInfo.RewrittenQuery
-            $body = @{
-                query = if ($rewrittenQuery) { $rewrittenQuery } else { $Query };
-                parameters = $Parameters;
-            }
+            $partitionKeyRanges = 
+                if ($env:COSMOS_DB_FLAG_ENABLE_PARTITION_KEY_RANGE_SEARCHES -eq 1)
+                {
+                    Get-FilteredPartitionKeyRangesForQuery -AllRanges $partitionKeyRanges -QueryRanges $response.QueryRanges
+                }
+                else 
+                {
+                    $allPartitionKeyRanges
+                }
 
-            Invoke-CosmosDbApiRequestWithContinuation -verb $POST_VERB -url $url -Body $body -Headers $headers
+            foreach ($partitionKeyRange in $partitionKeyRanges)
+            {
+                $headers["x-ms-documentdb-partitionkeyrangeid"] = $partitionKeyRange.id
+
+                $body = @{
+                    query = $searchQuery;
+                    parameters = $Parameters;
+                }
+
+                Invoke-CosmosDbApiRequestWithContinuation -verb $POST_VERB -url $url -Body $body -Headers $headers
+            }
         }
         catch [System.Net.WebException] 
         {
@@ -793,6 +886,29 @@ Function Use-CosmosDbFiddlerDebugging()
     $env:AZURE_CLI_DISABLE_CONNECTION_VERIFICATION=1
 }
 
+Function Use-CosmosDbInternalFlag
+(
+    $enableFiddlerDebugging=$null,
+    $enableCaching=$null,
+    $enablePartitionKeyRangeSearches=$null
+)
+{
+    if ($null -ne $enableFiddlerDebugging)
+    {
+        $env:AZURE_CLI_DISABLE_CONNECTION_VERIFICATION = if ($enableFiddlerDebugging) { 1 } else { 0 }
+    }
+
+    if ($null -ne $enableCaching)
+    {
+        $env:COSMOS_DB_FLAG_ENABLE_CACHING = if ($enableCaching) { 1 } else { 0 }
+    }
+
+    if ($null -ne $enablePartitionKeyRangeSearches)
+    {
+        $env:COSMOS_DB_FLAG_ENABLE_PARTITION_KEY_RANGE_SEARCHES = if ($enablePartitionKeyRangeSearches) { 1 } else { 0 }
+    }
+}
+
 Export-ModuleMember -Function "Get-CosmosDbRecord"
 Export-ModuleMember -Function "Get-AllCosmosDbRecords"
 
@@ -806,4 +922,4 @@ Export-ModuleMember -Function "Remove-CosmosDbRecord"
 
 Export-ModuleMember -Function "Get-CosmosDbRecordContent"
 
-Export-ModuleMember -Function "Use-CosmosDbFiddlerDebugging"
+Export-ModuleMember -Function "Use-CosmosDbInternalFlag"

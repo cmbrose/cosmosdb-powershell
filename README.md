@@ -1,13 +1,19 @@
 # cosmosdb-powershell
 Powershell module for Cosmos DB operations
 
+## Installation
+
+```powershell
+Install-Module cosmos-db
+```
+
 ## Commands
 
 ### Get-CosmosDbRecordContent
 
-Extracts and parses the response `Content` of `Get` commands and handles known error codes (404, 429)
+Extracts and parses the response `Content` of other commands and handles known error codes (404, 429)
 
-Generally this is pipelined after a `Get` command - e.g. `Get-CosmosDbRecord ... | Get-CosmosDbRecordContent`
+Generally this is pipelined after another command which returns an HTTP response - e.g. `Get-CosmosDbRecord ... | Get-CosmosDbRecordContent`
 
 ### Get-CosmosDbRecord
 
@@ -203,3 +209,22 @@ Remove-CosmosDbRecord ...
 | RecordId | The resource id | Yes |
 | SubscriptionId | The Azure Subscription Id | No - defaults to whatever `az` defaults to |
 | PartitionKey | The partition key of the resource | No - defaults to `Id`<br/>Must be set if the collection uses a different parition scheme |
+
+
+### Use-CosmosDbInternalFlag
+
+Enables or disables internal flags in the module, normally should only be used for debugging or dogfooding
+
+#### Examples
+
+```powershell
+Use-CosmosDbInternalFlag -EnableFiddlerDebugging $true
+```
+
+#### Parameters
+
+| Name | Usage | Required |
+| - | - | - |
+| EnableFiddlerDebugging | Sets the `az` flag `env:AZURE_CLI_DISABLE_CONNECTION_VERIFICATION` which enables `az` commands with a Fiddler proxy | No - default is disabled |
+| EnableCaching | Enables caching certain values like DB keys, partition ranges, etc. Improves performance of nearly all operations. | No - default is enabled |
+| EnablePartitionKeyRangeSearches | **[Experimental]** Enables filtering `Search` queries to relevant partition ranges instead of a full scan. Improves performance of `Search` commands. | No - default is disabled |
