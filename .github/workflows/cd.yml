@@ -23,3 +23,10 @@ jobs:
         with:
           modulePath: cosmos-db
           NuGetApiKey: ${{ secrets.PS_GALLERY_KEY }}
+          
+      - name: Update Release Tag
+        shell: pwsh
+        run: |
+          $version = (import-module cosmos-db\cosmos-db.psm1 -PassThru | % Version).ToString()
+          git tag "v$version"
+          git push origin --tags
