@@ -12,10 +12,13 @@ jobs:
   run-tests:
     runs-on: ubuntu-latest
     steps:
+    - name: checkout
+      uses: actions/checkout@v1
+      
     - name: debug
       shell: pwsh
-      run: |
-        ls
+      run: ls
+        
     - name: test module
       id: test_module
       uses: zyborg/pester-tests-report@v1
@@ -24,6 +27,7 @@ jobs:
         report_name: module_tests
         report_title: cosmos-db tests
         github_token: ${{ secrets.GITHUB_TOKEN }}
+
     - name: dump test results
       shell: pwsh
       run: |
