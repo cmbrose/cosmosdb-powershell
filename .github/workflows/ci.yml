@@ -27,7 +27,7 @@ jobs:
         gist_token: ${{ secrets.GIST_TOKEN }}
         gist_badge_label: Tests %ExecutedAt%
 
-    - name: dump results, again
+    - name: dump results
       shell: pwsh
       run: |
         ipmo GitHubActions

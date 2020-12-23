@@ -2,7 +2,9 @@ Get-Module cosmos-db | Remove-Module -Force
 Import-Module $PSScriptRoot\..\cosmos-db\cosmos-db.psm1 -Force
 
 InModuleScope cosmos-db {
-    . $PSScriptRoot\Utils.ps1
+    BeforeAll {
+        . $PSScriptRoot\Utils.ps1
+    }
 
     Describe "Invoke-CosmosDbApiRequest" {
         It "Correctly uses verb, url, and headers" {                
@@ -17,8 +19,8 @@ InModuleScope cosmos-db {
             Mock Invoke-WebRequest { 
                 param($Method, $Uri, $Body, $Headers) 
                 
-                $Method | Should Be $verb
-                $Uri | Should Be $url
+                $Method | Should -Be $verb
+                $Uri | Should -Be $url
                 AssertHashtablesEqual $headers $Headers
             }
 
@@ -97,7 +99,7 @@ InModuleScope cosmos-db {
             Mock Invoke-WebRequest { 
                 param($Method, $Uri, $Body, $Headers) 
 
-                $Body | Should Be $null
+                $Body | Should -Be $null
             }
 
             Invoke-CosmosDbApiRequest -Verb $verb -Url $url -Headers $headers

@@ -1,9 +1,11 @@
 Get-Module cosmos-db | Remove-Module -Force
 Import-Module $PSScriptRoot\..\cosmos-db\cosmos-db.psm1 -Force
 
-. $PSScriptRoot\Utils.ps1
-
 Describe "Get-CosmosDbRecordContent" {
+    BeforeAll {
+        . $PSScriptRoot\Utils.ps1
+    }
+
     It "Returns the Content of a successful response" {
         $content = @{ 
             Key1 = "Value1";
@@ -31,7 +33,7 @@ Describe "Get-CosmosDbRecordContent" {
 
         $result = $response | Get-CosmosDbRecordContent
 
-        $result | Should Be $null
+        $result | Should -Be $null
     }
 
     It "Throws not found for 404" {
@@ -39,7 +41,7 @@ Describe "Get-CosmosDbRecordContent" {
             StatusCode = 404;
         }
 
-        { $response | Get-CosmosDbRecordContent } | Should Throw "Record not found"
+        { $response | Get-CosmosDbRecordContent } | Should -Throw "Record not found"
     }
     
     It "Throws throttle for 429" {
@@ -47,7 +49,7 @@ Describe "Get-CosmosDbRecordContent" {
             StatusCode = 429;
         }
 
-        { $response | Get-CosmosDbRecordContent } | Should Throw "Request rate limited"
+        { $response | Get-CosmosDbRecordContent } | Should -Throw "Request rate limited"
     }
         
     It "Throws useful error for unknown errors" {
@@ -62,6 +64,6 @@ Describe "Get-CosmosDbRecordContent" {
         $response | Add-Member -memberType ScriptMethod -Name "GetResponseStream" -Value { [IO.MemoryStream]::new([Text.Encoding]::UTF8.GetBytes($errorResponse)) } -Force
 
 
-        { $response | Get-CosmosDbRecordContent } | Should Throw "Request failed with status code 401 with message`n`n$errorMessage"
+        { $response | Get-CosmosDbRecordContent } | Should -Throw "Request failed with status code 401 with message`n`n$errorMessage"
     }
 }
