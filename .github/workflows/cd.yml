@@ -3,7 +3,7 @@ name: Publish Module
 on:
   push:
     paths:
-    - 'cosmos-db\cosmos-db.psd1'
+    - 'cosmos-db/cosmos-db.psd1'
     branches: 
     - main
 
