@@ -14,23 +14,48 @@ jobs:
     steps:
     - name: checkout
       uses: actions/checkout@v1
-      
-    - name: debug
-      shell: pwsh
-      run: ls
         
     - name: test module
       id: test_module
       uses: zyborg/pester-tests-report@v1
       with:
         include_paths: tests
-        report_name: module_tests
+        report_name: cosmos-db tests
         report_title: cosmos-db tests
+        gist_name: pester-tests-report.md
         github_token: ${{ secrets.GITHUB_TOKEN }}
+        gist_token: ${{ secrets.GIST_TOKEN }}
+        gist_badge_label: Tests %ExecutedAt%
 
-    - name: dump test results
+    - name: dump results, again
       shell: pwsh
       run: |
-        Write-Host 'Total Tests Executed...:  ${{ steps.test_module.outputs.total_count }}'
-        Write-Host 'Total Tests PASSED.....:  ${{ steps.test_module.outputs.passed_count }}'
-        Write-Host 'Total Tests FAILED.....:  ${{ steps.test_module.outputs.failed_count }}'
+        ipmo GitHubActions
+        $test_results_path = '${{ steps.testAction2.outputs.test_results_path }}'
+        $error_message     = '${{ steps.testAction2.outputs.error_message }}'
+        $error_clixml_path = '${{ steps.testAction2.outputs.error_clixml_path }}'
+        $result_clixml_path = '${{ steps.testAction2.outputs.result_clixml_path }}'
+        $result_value       = '${{ steps.testAction2.outputs.result_value }}'
+        $total_count        = '${{ steps.testAction2.outputs.total_count }}'
+        $passed_count       = '${{ steps.testAction2.outputs.passed_count }}'
+        $failed_count       = '${{ steps.testAction2.outputs.failed_count }}'
+        Write-ActionInfo "Found these outputs from [testAction2]:"
+        Write-ActionInfo "  * test_results_path  = $test_results_path"
+        Write-ActionInfo "  * error_message      = $error_message"
+        Write-ActionInfo "  * error_clixml_path  = $error_clixml_path"
+        Write-ActionInfo "  * result_clixml_path = $result_clixml_path"
+        Write-ActionInfo "  * result_value       = $result_value"
+        Write-ActionInfo "  * total_count        = $total_count"
+        Write-ActionInfo "  * passed_count       = $passed_count"
+        Write-ActionInfo "  * failed_count       = $failed_count"
+        if ($error_clixml_path) {
+          $er = Import-Clixml -Path $error_clixml_path
+          Write-ActionInfo "Loaded up the ErrorRecord:"
+          $er
+          $er.Exception
+        }
+        if ($result_clixml_path) {
+          $pr = Import-Clixml -Path $result_clixml_path
+          Write-ActionInfo "Loaded up the Pester Result:"
+          $pr
+        }
