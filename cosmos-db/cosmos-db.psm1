@@ -863,7 +863,14 @@ Function Get-CosmosDbRecordContent([parameter(ValueFromPipeline)]$RecordResponse
         $code=[int]$RecordResponse.StatusCode
         if ($code -lt 300)
         {
-            $RecordResponse.Content | ConvertFrom-Json
+            if ($RecordResponse.Content)
+            {
+                $RecordResponse.Content | ConvertFrom-Json
+            }
+            else
+            {
+                $null
+            }
         }
         elseif ($code -eq 404)
         {
