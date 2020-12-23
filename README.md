@@ -1,6 +1,9 @@
 # cosmosdb-powershell
 Powershell module for Cosmos DB operations
 
+[![GitHub Workflow - CI](https://github.com/cmbrose/cosmosdb-powershell/workflows/CI/badge.svg)](https://github.com/cmbrose/cosmosdb-powershell/actions?workflow=CI)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/cmbrose/cosmosdb-powershell)](https://github.com/cmbrose/cosmosdb-powershell/releases/latest)
+
 ## Installation
 
 ```powershell
