@@ -1,0 +1,25 @@
+name: Publish Module
+
+on:
+  push:
+    paths:
+    - 'cosmos-db/cosmos-db.psd1'
+    branches: 
+    - main
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        
+      - name: Publish Module to PowerShell Gallery
+        uses: pcgeek86/publish-powershell-module-action@v19
+        id: publish-module
+        with:
+          modulePath: cosmos-db
+          NuGetApiKey: ${{ secrets.PS_GALLERY_KEY }}
