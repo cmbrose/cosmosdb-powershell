@@ -28,8 +28,6 @@ jobs:
         Install-Module GitHubActions -Force | Out-Null
         Import-Module GitHubActions | Out-Null
 
-        Get-ChildItem -Path env:
-
         Install-Module $env:module_name -Force | Out-Null
         $marketplaceVersion = import-module $env:module_name -PassThru | % Version
         $repoVersion = import-module ".\$env:module_name" -PassThru | % Version
