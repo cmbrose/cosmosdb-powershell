@@ -127,7 +127,7 @@ Function Get-AuthorizationHeader([string]$ResourceGroup, [string]$SubscriptionId
 Function Get-CommonHeaders([string]$now, [string]$encodedAuthString, [string]$contentType="application/json", [bool]$isQuery=$false, [string]$PartitionKey=$null)
 {
     $headers = @{ 
-        "x-ms-date"=$now;
+        "x-ms-date" = $now;
         "x-ms-version" = $API_VERSION;
         "Authorization" = $encodedAuthString;
         "Cache-Control" = "No-Cache";
@@ -136,12 +136,12 @@ Function Get-CommonHeaders([string]$now, [string]$encodedAuthString, [string]$co
 
     if ($isQuery)
     {
-        $headers[ "x-ms-documentdb-isquery"] = "true"
+        $headers["x-ms-documentdb-isquery"] = "true"
     }
 
     if ($PartitionKey)
     {
-        $headers["x-ms-documentdb-partitionkey"] = "[`"$requestPartitionKey`"]"
+        $headers["x-ms-documentdb-partitionkey"] = "[`"$PartitionKey`"]"
     }
 
     $headers

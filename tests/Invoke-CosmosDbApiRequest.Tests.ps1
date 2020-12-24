@@ -38,7 +38,8 @@ InModuleScope cosmos-db {
                 Nested = @{
                     Key1 = "Value1";
                     Key2 = 2;
-                } 
+                };
+                Array = @(1, 2, 3, 4);
             }
             $headers = @{}
             
