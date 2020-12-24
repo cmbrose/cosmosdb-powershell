@@ -19,7 +19,7 @@ jobs:
       
     - name: Get module versions
       id: check_versions
-      uses: cmbrose/compare-ps-module-version-to-marketplace@v1
+      uses: cmbrose/compare-ps-module-version-to-marketplace@v1.1
       with:
         moduleName: cosmos-db
     
@@ -35,6 +35,6 @@ jobs:
       name: Update Release Tag
       shell: pwsh
       run: |
-        $version = ${{ steps.check_versions.outputs.latest_version }}
+        $version = ${{ steps.check_versions.outputs.repo_version }}
         git tag "v$version"
         git push origin --tags
