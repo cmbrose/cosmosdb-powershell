@@ -12,10 +12,11 @@ on:
 jobs:
   publish-module:
     runs-on: ubuntu-latest
-
-    steps:
+    
     env:
       module_name: cosmos-db
+    
+    steps:
 
     - name: Checkout
       uses: actions/checkout@v2
