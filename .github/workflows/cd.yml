@@ -19,9 +19,20 @@ jobs:
       
     - name: Get module versions
       id: check_versions
-      uses: cmbrose/compare-ps-module-version-to-marketplace@v1.2
-      with:
-        moduleName: cosmos-db
+      shell: pwsh
+      run: |
+        Install-Module GitHubActions -Force | Out-Null
+        Import-Module GitHubActions | Out-Null
+
+        Install-Module cosmos-db -Force | Out-Null
+        $marketplaceVersion = import-module cosmos-db -PassThru | % Version
+        $repoVersion = import-module .\cosmos-db -PassThru | % Version
+
+        Write-ActionInfo ("MarketPlace Version = {0}" -f $marketplaceVersion.ToString())
+        Write-ActionInfo ("Latest Version      = {0}" -f $repoVersion.ToString())
+
+        Set-ActionOutput -Name repository_version -Value $repoVersion.ToString()
+        Set-ActionOutput -Name should_publish -Value ($repoVersion -gt $marketplaceVersion).ToString().ToLower()
     
     - if: ${{ steps.check_versions.outputs.should_publish == 'true' }}
       name: Publish Module to PowerShell Gallery
