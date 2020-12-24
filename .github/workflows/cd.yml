@@ -17,14 +17,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
         
-      - name: Publish Module to PowerShell Gallery
+      - name: Get module versions
+        id: check_versions
+        shell: pwsh
+        run: |
+          Import-Module GitHubActions -Force
+
+          $marketplaceVersion = import-module cosmos-db -PassThru | % Version
+          $latestVersion = import-module .\cosmos-db -PassThru | % Version
+
+          Write-ActionInfo ("  * MarketPlace Version = {0}" -f $marketplaceVersion.ToString())
+          Write-ActionInfo ("  * Latest Version      = {0}" -f $latestVersion.ToString())
+
+          Set-ActionOutput -Name should_publish -Value ($latestVersion -gt $marketplaceVersion)
+      
+      - if: ${{ steps.check_versions.outputs.should_publish }}
+        name: Publish Module to PowerShell Gallery
         uses: pcgeek86/publish-powershell-module-action@v19
         id: publish-module
         with:
           modulePath: cosmos-db
           NuGetApiKey: ${{ secrets.PS_GALLERY_KEY }}
           
-      - name: Update Release Tag
+      - if: ${{ steps.check_versions.outputs.should_publish }}
+        name: Update Release Tag
         shell: pwsh
         run: |
           install-module cosmos-db -force
