@@ -14,6 +14,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    env:
+      module_name: cosmos-db
+
     - name: Checkout
       uses: actions/checkout@v2
       
@@ -24,9 +27,11 @@ jobs:
         Install-Module GitHubActions -Force | Out-Null
         Import-Module GitHubActions | Out-Null
 
-        Install-Module cosmos-db -Force | Out-Null
-        $marketplaceVersion = import-module cosmos-db -PassThru | % Version
-        $repoVersion = import-module .\cosmos-db -PassThru | % Version
+        Get-ChildItem -Path env:
+
+        Install-Module $env:module_name -Force | Out-Null
+        $marketplaceVersion = import-module $env:module_name -PassThru | % Version
+        $repoVersion = import-module ".\$env:module_name" -PassThru | % Version
 
         Write-ActionInfo ("MarketPlace Version = {0}" -f $marketplaceVersion.ToString())
         Write-ActionInfo ("Latest Version      = {0}" -f $repoVersion.ToString())
@@ -36,11 +41,9 @@ jobs:
     
     - if: ${{ steps.check_versions.outputs.should_publish == 'true' }}
       name: Publish Module to PowerShell Gallery
-      uses: pcgeek86/publish-powershell-module-action@v19      
-      id: publish-module
-      with:
-        modulePath: cosmos-db
-        NuGetApiKey: ${{ secrets.PS_GALLERY_KEY }}
+      shell: pwsh
+      run: |
+        Publish-Module -Path $env:module_name -NuGetApiKey "${{ secrets.PS_GALLERY_KEY }}"
         
     - if: ${{ steps.check_versions.outputs.should_publish == 'true' }}
       name: Update Release Tag
