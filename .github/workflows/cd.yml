@@ -14,37 +14,38 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-        
-      - name: Get module versions
-        id: check_versions
-        shell: pwsh
-        run: |
-          ipmo GitHubActions
-
-          $marketplaceVersion = import-module cosmos-db -PassThru | % Version
-          $latestVersion = import-module .\cosmos-db -PassThru | % Version
-
-          Write-ActionInfo ("* MarketPlace Version = {0}" -f $marketplaceVersion.ToString())
-          Write-ActionInfo ("* Latest Version      = {0}" -f $latestVersion.ToString())
-
-          Set-ActionOutput -Name latest_version -Value ($latestVersion.ToString())
-          Set-ActionOutput -Name marketplace_version -Value ($marketplaceVersion.ToString())
-          Set-ActionOutput -Name should_publish -Value ($latestVersion -gt $marketplaceVersion)
+    - name: Checkout
+      uses: actions/checkout@v2
       
-      - if: ${{ steps.check_versions.outputs.should_publish }}
-        name: Publish Module to PowerShell Gallery
-        uses: pcgeek86/publish-powershell-module-action@v19
-        id: publish-module
-        with:
-          modulePath: cosmos-db
-          NuGetApiKey: ${{ secrets.PS_GALLERY_KEY }}
-          
-      - if: ${{ steps.check_versions.outputs.should_publish }}
-        name: Update Release Tag
-        shell: pwsh
-        run: |
-          $version = ${{ steps.check_versions.outputs.latest_version }}
-          git tag "v$version"
-          git push origin --tags
+    - name: Get module versions
+      id: check_versions
+      shell: pwsh
+      run: |
+        Install-Module GitHubActions -Force
+        Import-Module GitHubActions
+
+        $marketplaceVersion = import-module cosmos-db -PassThru | % Version
+        $latestVersion = import-module .\cosmos-db -PassThru | % Version
+
+        Write-ActionInfo ("* MarketPlace Version = {0}" -f $marketplaceVersion.ToString())
+        Write-ActionInfo ("* Latest Version      = {0}" -f $latestVersion.ToString())
+
+        Set-ActionOutput -Name latest_version -Value ($latestVersion.ToString())
+        Set-ActionOutput -Name marketplace_version -Value ($marketplaceVersion.ToString())
+        Set-ActionOutput -Name should_publish -Value ($latestVersion -gt $marketplaceVersion)
+    
+    - if: ${{ steps.check_versions.outputs.should_publish }}
+      name: Publish Module to PowerShell Gallery
+      uses: pcgeek86/publish-powershell-module-action@v19
+      id: publish-module
+      with:
+        modulePath: cosmos-db
+        NuGetApiKey: ${{ secrets.PS_GALLERY_KEY }}
+        
+    - if: ${{ steps.check_versions.outputs.should_publish }}
+      name: Update Release Tag
+      shell: pwsh
+      run: |
+        $version = ${{ steps.check_versions.outputs.latest_version }}
+        git tag "v$version"
+        git push origin --tags
