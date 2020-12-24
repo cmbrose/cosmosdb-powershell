@@ -19,7 +19,7 @@ jobs:
       
     - name: Get module versions
       id: check_versions
-      uses: cmbrose/compare-ps-module-version-to-marketplace@v1.1
+      uses: cmbrose/compare-ps-module-version-to-marketplace@v1.2
       with:
         moduleName: cosmos-db
     
