@@ -24,8 +24,9 @@ jobs:
         Install-Module GitHubActions -Force
         Import-Module GitHubActions
 
-        $marketplaceVersion = import-module cosmos-db -PassThru | % Version
-        $latestVersion = import-module .\cosmos-db -PassThru | % Version
+        Install-Module cosmos-db -Force
+        $marketplaceVersion = Import-Module cosmos-db -PassThru | % Version
+        $latestVersion = Import-Module .\cosmos-db -PassThru | % Version
 
         Write-ActionInfo ("* MarketPlace Version = {0}" -f $marketplaceVersion.ToString())
         Write-ActionInfo ("* Latest Version      = {0}" -f $latestVersion.ToString())
