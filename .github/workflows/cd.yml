@@ -23,18 +23,18 @@ jobs:
       with:
         moduleName: cosmos-db
     
-    - if: true == ${{ steps.check_versions.outputs.should_publish }}
+    - if: ${{ steps.check_versions.outputs.should_publish }}
       name: Publish Module to PowerShell Gallery
-      uses: pcgeek86/publish-powershell-module-action@v19
+      uses: pcgeek86/publish-powershell-module-action@v19      
       id: publish-module
       with:
         modulePath: cosmos-db
         NuGetApiKey: ${{ secrets.PS_GALLERY_KEY }}
         
-    - if: true == ${{ steps.check_versions.outputs.should_publish }}
+    - if: ${{ steps.check_versions.outputs.should_publish }}
       name: Update Release Tag
       shell: pwsh
       run: |
-        $version = ${{ steps.check_versions.outputs.repo_version }}
+        $version = ${{ steps.check_versions.outputs.repository_version }}
         git tag "v$version"
         git push origin --tags
