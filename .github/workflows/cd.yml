@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  publish-module:
     runs-on: ubuntu-latest
 
     steps:
@@ -21,14 +21,16 @@ jobs:
         id: check_versions
         shell: pwsh
         run: |
-          Import-Module GitHubActions -Force
+          ipmo GitHubActions
 
           $marketplaceVersion = import-module cosmos-db -PassThru | % Version
           $latestVersion = import-module .\cosmos-db -PassThru | % Version
 
-          Write-ActionInfo ("  * MarketPlace Version = {0}" -f $marketplaceVersion.ToString())
-          Write-ActionInfo ("  * Latest Version      = {0}" -f $latestVersion.ToString())
+          Write-ActionInfo ("* MarketPlace Version = {0}" -f $marketplaceVersion.ToString())
+          Write-ActionInfo ("* Latest Version      = {0}" -f $latestVersion.ToString())
 
+          Set-ActionOutput -Name latest_version -Value ($latestVersion.ToString())
+          Set-ActionOutput -Name marketplace_version -Value ($marketplaceVersion.ToString())
           Set-ActionOutput -Name should_publish -Value ($latestVersion -gt $marketplaceVersion)
       
       - if: ${{ steps.check_versions.outputs.should_publish }}
@@ -43,7 +45,6 @@ jobs:
         name: Update Release Tag
         shell: pwsh
         run: |
-          install-module cosmos-db -force
-          $version = (import-module cosmos-db -PassThru | % Version).ToString()
+          $version = ${{ steps.check_versions.outputs.latest_version }}
           git tag "v$version"
           git push origin --tags
