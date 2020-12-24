@@ -19,21 +19,9 @@ jobs:
       
     - name: Get module versions
       id: check_versions
-      shell: pwsh
-      run: |
-        Install-Module GitHubActions -Force
-        Import-Module GitHubActions
-
-        Install-Module cosmos-db -Force
-        $marketplaceVersion = Import-Module cosmos-db -PassThru | % Version
-        $latestVersion = Import-Module .\cosmos-db -PassThru | % Version
-
-        Write-ActionInfo ("* MarketPlace Version = {0}" -f $marketplaceVersion.ToString())
-        Write-ActionInfo ("* Latest Version      = {0}" -f $latestVersion.ToString())
-
-        Set-ActionOutput -Name latest_version -Value ($latestVersion.ToString())
-        Set-ActionOutput -Name marketplace_version -Value ($marketplaceVersion.ToString())
-        Set-ActionOutput -Name should_publish -Value ($latestVersion -gt $marketplaceVersion)
+      uses: cmbrose/compare-ps-module-version-to-marketplace@v1
+      with:
+        moduleName: cosmos-db
     
     - if: ${{ steps.check_versions.outputs.should_publish }}
       name: Publish Module to PowerShell Gallery
