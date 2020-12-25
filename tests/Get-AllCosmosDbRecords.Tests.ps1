@@ -57,7 +57,7 @@ InModuleScope cosmos-db {
                 Headers = @{};
             }
 
-            Mock Invoke-CosmosDbApiRequest {
+            Mock Invoke-CosmosDbApiRequestWithContinuation {
                 param($verb, $url, $body, $headers) 
                 
                 VerifyInvokeCosmosDbApiRequest $verb $url $body $headers | Out-Null
@@ -69,47 +69,46 @@ InModuleScope cosmos-db {
 
             $result | Should -BeExactly $response
 
-            Assert-MockCalled Invoke-CosmosDbApiRequest -Times 1
+            Assert-MockCalled Invoke-CosmosDbApiRequestWithContinuation -Times 1
         }
 
-        It "Handles continuation response headers" {  
-            $continuationTokens = @($null, "1", "2", "3")  
-            $response = @{
+        It "Returns multiple responses" {
+            $response1 = @{
                 StatusCode = 200;
-                Content = "{}";
+                Content = "1";
                 Headers = @{};
             }
 
-            $global:idx = 0
-            $global:expectedResponses = @()
+            $response2 = @{
+                StatusCode = 200;
+                Content = "1";
+                Headers = @{};
+            }
 
-            Mock Invoke-CosmosDbApiRequest {
+            $response3 = @{
+                StatusCode = 200;
+                Content = "1";
+                Headers = @{};
+            }
+
+            Mock Invoke-CosmosDbApiRequestWithContinuation {
                 param($verb, $url, $body, $headers) 
                 
-                $headers["x-ms-continuation"] | Should -Be $continuationTokens[$idx]
-                $global:idx = $global:idx + 1
-
-                # Remove this because VerifyInvokeCosmosDbApiRequest doesn't expect it and we checked it specifically above
-                $headers.Remove("x-ms-continuation")
                 VerifyInvokeCosmosDbApiRequest $verb $url $body $headers | Out-Null
         
-                $response = @{
-                    StatusCode = 200;
-                    Content = "$global:idx";
-                    Headers = @{
-                        "x-ms-continuation" = $continuationTokens[$idx]
-                    };
-                }
-
-                $global:expectedResponses += $response
-                $response
+                $response1
+                $response2
+                $response3
             }
 
             $result = Get-AllCosmosDbRecords -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION
 
-            $result | Should -BeExactly $global:expectedResponses
+            $result.Count | Should -Be 3
+            $result[0] | Should -BeExactly $response1
+            $result[1] | Should -BeExactly $response2
+            $result[2] | Should -BeExactly $response3
 
-            Assert-MockCalled Invoke-CosmosDbApiRequest -Times $continuationTokens.Count
+            Assert-MockCalled Invoke-CosmosDbApiRequestWithContinuation -Times 1
         }
 
         It "Should handle exceptions gracefully" {    
