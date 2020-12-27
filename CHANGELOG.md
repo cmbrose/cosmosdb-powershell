@@ -1,6 +1,9 @@
 # Release Notes
 All notable changes and release history of the "cosmos-db" module will be documented in this file.
 
+## 1.7
+* Minor interface improvements
+
 ## 1.6
 * Adds `Use-CosmosDbInternalFlag` command to access some experimental features and debugging helpers
 * Fixes support for extra query features in `Search-CosmosDbRecords` for DBs with more than one partition key range
