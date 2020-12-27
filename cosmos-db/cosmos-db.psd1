@@ -113,8 +113,8 @@ PrivateData = @{
         # ReleaseNotes = ''
 
     } # End of PSData hashtable
-    
- } # End of PrivateData hashtable
+
+} # End of PrivateData hashtable
 
 # HelpInfo URI of this module
 HelpInfoURI = 'https://github.com/cmbrose/cosmosdb-powershell/blob/main/README.md'
