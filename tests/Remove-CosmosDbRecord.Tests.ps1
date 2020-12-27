@@ -4,6 +4,8 @@ Import-Module $PSScriptRoot\..\cosmos-db\cosmos-db.psm1 -Force
 InModuleScope cosmos-db {
     Describe "Remove-CosmosDbRecord" {                    
         BeforeAll {
+            Use-CosmosDbInternalFlag -EnableCaching $false
+            
             . $PSScriptRoot\Utils.ps1    
 
             $global:capturedNow = $null

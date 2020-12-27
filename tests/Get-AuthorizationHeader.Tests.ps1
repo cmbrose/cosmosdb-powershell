@@ -4,6 +4,8 @@ Import-Module $PSScriptRoot\..\cosmos-db\cosmos-db.psm1 -Force
 InModuleScope cosmos-db {
     Describe "Get-AuthorizationHeader" {                    
         BeforeAll {
+            Use-CosmosDbInternalFlag -EnableCaching $false
+
             $MOCK_SUB = "MOCK_SUB"
             $MOCK_RG = "MOCK_RG"
             $MOCK_DB = "MOCK_DB"

@@ -4,6 +4,8 @@ Import-Module $PSScriptRoot\..\cosmos-db\cosmos-db.psm1 -Force
 InModuleScope cosmos-db {
     Describe "Search-CosmosDbRecords" {                    
         BeforeAll {
+            Use-CosmosDbInternalFlag -EnableCaching $false
+            
             . $PSScriptRoot\Utils.ps1    
 
             $global:capturedNow = $null
@@ -34,12 +36,14 @@ InModuleScope cosmos-db {
                 
                 $actualBody.Count | Should -Be 2
                 $actualBody.query | Should -Be $expectedBody.query
-                $actualBody.parameters | % { 
-                    $a = $_
-                    $matchedParam = $expectedBody.parameters | where { $_.name -eq $a.name } | select -First 1
-                    $matchedParam | Should -Not -BeNullOrEmpty
-                    $a.value | Should -Be $matchedParam.value
-                 }
+                $actualBody.parameters.count | Should -Be $expectedBody.parameters.count
+                
+                $expectedBody.parameters | % { 
+                    $e = $_
+                    $matchedParam = $actualBody.parameters | where { $_.name -eq $e.name } | select -First 1
+                    $matchedParam | Should -Not -BeNullOrEmpty -Because ("the expected query params contained a pair named {0}" -f $e.name)
+                    $matchedParam.value | Should -Be $e.value -Because ("of the expected query param value for {0}" -f $e.name)
+                }
                     
                 $global:capturedNow | Should -Not -Be $null
 
@@ -164,13 +168,13 @@ InModuleScope cosmos-db {
 
             $response2 = @{
                 StatusCode = 200;
-                Content = "1";
+                Content = "2";
                 Headers = @{};
             }
 
             $response3 = @{
                 StatusCode = 200;
-                Content = "1";
+                Content = "3";
                 Headers = @{};
             }
 
@@ -218,6 +222,40 @@ InModuleScope cosmos-db {
             $result = Search-CosmosDbRecords -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -Query $MOCK_QUERY -DisableExtraFeatures
 
             $result | Should -BeExactly $response
+        }
+
+        It "Uses extra features by default" {    
+            $response = @{
+                StatusCode = 200;
+                Content = "{}";
+                Headers = @{};
+            }
+
+            $mockParameters = @(@{
+                name = "Mock";
+                value = "MOCK";
+            })
+
+            Mock Search-CosmosDbRecordsWithExtraFeatures {
+                param($ResourceGroup, $Database, $Container, $Collection, $Query, $Parameters, $SubscriptionId) 
+                
+                $ResourceGroup | Should -Be $MOCK_RG | Out-Null
+                $Database | Should -Be $MOCK_DB | Out-Null
+                $Container | Should -Be $MOCK_CONTAINER | Out-Null
+                $Collection | Should -Be $MOCK_COLLECTION | Out-Null
+                $Query | Should -Be $MOCK_QUERY | Out-Null
+                $SubscriptionId | Should -Be $MOCK_SUB | Out-Null
+
+                AssertArraysEqual $mockParameters $Parameters
+
+                $response
+            }
+
+            $result = Search-CosmosDbRecords -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -Query $MOCK_QUERY -Parameters $mockParameters
+
+            $result | Should -BeExactly $response
+
+            Assert-MockCalled Search-CosmosDbRecordsWithExtraFeatures -Times 1
         }
     }
 }

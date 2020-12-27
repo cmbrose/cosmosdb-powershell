@@ -1,6 +1,7 @@
 Function PSObjectToHashtable([parameter(ValueFromPipeline)]$psobject)
 {
-    $psobject.psobject.properties | % { $ht = @{} } { $ht[$_.Name] = $_.Value } { $ht }
+    ($psobject | ConvertTo-Json -Depth 100 | ConvertFrom-Json).psobject.properties |
+        % { $ht = @{} } { $ht[$_.Name] = $_.Value } { $ht }
 }
 
 Function AssertObjectsEqual($expected, $actual, [string]$path=$null)
@@ -41,7 +42,7 @@ Function AssertArraysEqual([array]$expected, $actual, [string]$path=$null)
 
 Function AssertHashtablesEqual([hashtable]$expected, $actual, [string]$path=$null)
 {
-    if ($actual -is [pscustomobject])
+    if ($actual -is [pscustomobject] -or $actual -is [psobject])
     {
         $actual = $actual | PSObjectToHashtable
     }
@@ -57,8 +58,8 @@ Function AssertHashtablesEqual([hashtable]$expected, $actual, [string]$path=$nul
     }
 
     $actual.Keys | % { 
-        $a = $actual.$_
-        $e = $expected.$_
+        $a = $actual[$_]
+        $e = $expected[$_]
 
         $currentPath = if ($path) { "$path.$_" } else { "$_" }
 
