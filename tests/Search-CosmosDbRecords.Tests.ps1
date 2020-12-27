@@ -32,7 +32,14 @@ InModuleScope cosmos-db {
                 $verb | Should -Be "post"
                 $url | Should -Be "https://$MOCK_DB.documents.azure.com/dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/docs"        
                 
-                AssertHashtablesEqual $expectedBody $actualBody
+                $actualBody.Count | Should -Be 2
+                $actualBody.query | Should -Be $expectedBody.query
+                $actualBody.parameters | % { 
+                    $a = $_
+                    $matchedParam = $expectedBody.parameters | where { $_.name -eq $a.name } | select -First 1
+                    $matchedParam | Should -Not -BeNullOrEmpty
+                    $a.value | Should -Be $matchedParam.value
+                 }
                     
                 $global:capturedNow | Should -Not -Be $null
 
