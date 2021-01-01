@@ -1,6 +1,9 @@
 # Release Notes
 All notable changes and release history of the "cosmos-db" module will be documented in this file.
 
+## 1.8
+* Bugfix for continuation tokens on Powershell version 7+
+
 ## 1.7
 * Minor interface improvements
 

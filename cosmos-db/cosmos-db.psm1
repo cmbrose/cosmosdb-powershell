@@ -187,6 +187,27 @@ Function Invoke-CosmosDbApiRequest([string]$verb, [string]$url, $headers, $body=
     Invoke-WebRequest -Method $verb -Uri $url -Body $body -Headers $headers
 }
 
+Function Get-ContinuationToken($response)
+{
+    $value = $response.Headers["x-ms-continuation"]
+
+    if ($PSVersionTable.PSEdition -eq "Core")
+    {
+        if (-not $value)
+        {
+            return $null
+        }
+
+        # Headers were changed to arrays in version 7
+        # https://docs.microsoft.com/en-us/powershell/scripting/whats-new/breaking-changes-ps6?view=powershell-7.1#changes-to-web-cmdlets
+        $value[0]
+    }
+    else
+    {
+        $value
+    }
+}
+
 Function Invoke-CosmosDbApiRequestWithContinuation([string]$verb, [string]$url, $headers, $body=$null)
 {
     process
@@ -194,12 +215,15 @@ Function Invoke-CosmosDbApiRequestWithContinuation([string]$verb, [string]$url, 
         $response = Invoke-CosmosDbApiRequest -Verb $verb -Url $url -Body $body -Headers $headers
         $response
 
-        while ($response.Headers["x-ms-continuation"])
+        $continuationToken = Get-ContinuationToken $response
+        while ($continuationToken)
         {
-            $headers["x-ms-continuation"] = $response.Headers["x-ms-continuation"];
+            $headers["x-ms-continuation"] = $continuationToken
 
             $response = Invoke-CosmosDbApiRequest -Verb $verb -Url $url -Body $body -Headers $headers
             $response
+
+            $continuationToken = Get-ContinuationToken $response
         }   
     }
 }
