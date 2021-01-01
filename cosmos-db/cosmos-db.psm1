@@ -195,6 +195,11 @@ Function Get-ContinuationToken($response)
 
     if ($POWERSHELL_VERSION -eq 7)
     {
+        if (-not $value)
+        {
+            return $null
+        }
+
         # Headers were changed to arrays in version 7
         # https://docs.microsoft.com/en-us/powershell/scripting/whats-new/breaking-changes-ps6?view=powershell-7.1#changes-to-web-cmdlets
         $value[0]
