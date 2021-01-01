@@ -6,10 +6,12 @@ InModuleScope cosmos-db {
         Use-CosmosDbInternalFlag -EnableCaching $false
         
         . $PSScriptRoot\Utils.ps1
+
+        $ORIG_PS_EDITION = $PSVersionTable.PSEdition
     }
 
     AfterAll {
-        $POWERSHELL_VERSION = 5
+        $PSVersionTable.PSEdition = $ORIG_PS_EDITION
     }
 
     Describe "Invoke-CosmosDbApiRequestWithContinuation" {
@@ -51,7 +53,7 @@ InModuleScope cosmos-db {
         }
 
         It "Handles responses without continuation header for Powershell 7" {  
-            $POWERSHELL_VERSION = 7
+            $PSVersionTable.PSEdition = "Core"
 
             $MOCK_VERB = "MOCK_VERB"
             $MOCK_URL = "MOCK_URL"
@@ -139,7 +141,7 @@ InModuleScope cosmos-db {
         It "Handles continuation response headers for Powershell 7" {  
             $continuationTokens = @($null, "100", "200", "300")
 
-            $POWERSHELL_VERSION = 7
+            $PSVersionTable.PSEdition = "Core"
 
             $MOCK_VERB = "MOCK_VERB"
             $MOCK_URL = "MOCK_URL"

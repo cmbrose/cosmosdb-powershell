@@ -14,8 +14,6 @@ $MASTER_KEY_CACHE = @{}
 $SIGNATURE_HASH_CACHE = @{}
 $PARTITION_KEY_RANGE_CACHE = @{}
 
-$POWERSHELL_VERSION = (Get-Host).Version.Major
-
 Function Get-BaseDatabaseUrl([string]$Database)
 {
     return "https://$Database.documents.azure.com"
@@ -193,7 +191,7 @@ Function Get-ContinuationToken($response)
 {
     $value = $response.Headers["x-ms-continuation"]
 
-    if ($POWERSHELL_VERSION -eq 7)
+    if ($PSVersionTable.PSEdition -eq "Core")
     {
         if (-not $value)
         {
