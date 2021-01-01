@@ -2,10 +2,10 @@ Get-Module cosmos-db | Remove-Module -Force
 Import-Module $PSScriptRoot\..\cosmos-db\cosmos-db.psm1 -Force
 
 InModuleScope cosmos-db {
-    Describe "Get-CosmosDbRecord" {                    
+    Describe "Remove-CosmosDbRecord" {                    
         BeforeAll {
             Use-CosmosDbInternalFlag -EnableCaching $false
-
+            
             . $PSScriptRoot\Utils.ps1    
 
             $global:capturedNow = $null
@@ -24,20 +24,20 @@ InModuleScope cosmos-db {
                 $ResourceGroup | Should -Be $MOCK_RG
                 $SubscriptionId | Should -Be $MOCK_SUB
 
-                $verb | Should -Be "get"
+                $verb | Should -Be "delete"
                 $resourceType | Should -Be "docs"
                 $resourceUrl | Should -Be "dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/docs/$MOCK_RECORD_ID"
             }
 
             Function VerifyInvokeCosmosDbApiRequest($verb, $url, $body, $headers, $partitionKey=$MOCK_RECORD_ID)
             {
-                $verb | Should -Be "get"
+                $verb | Should -Be "delete"
                 $url | Should -Be "https://$MOCK_DB.documents.azure.com/dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/docs/$MOCK_RECORD_ID"        
                 $body | Should -Be $null
                     
                 $global:capturedNow | Should -Not -Be $null
 
-                $expectedHeaders = Get-CommonHeaders -now $global:capturedNow -encodedAuthString $MOCK_AUTH_HEADER -PartitionKey $partitionKey -isQuery $true
+                $expectedHeaders = Get-CommonHeaders -now $global:capturedNow -encodedAuthString $MOCK_AUTH_HEADER -PartitionKey $partitionKey
             
                 AssertHashtablesEqual $expectedHeaders $headers
             }
@@ -67,7 +67,7 @@ InModuleScope cosmos-db {
                 $response
             }
 
-            $result = Get-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -RecordId $MOCK_RECORD_ID
+            $result = Remove-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -RecordId $MOCK_RECORD_ID
 
             $result | Should -BeExactly $response
         }
@@ -88,7 +88,7 @@ InModuleScope cosmos-db {
                 $response
             }
 
-            $result = Get-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -RecordId $MOCK_RECORD_ID -PartitionKey $partitionKey
+            $result = Remove-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -RecordId $MOCK_RECORD_ID -PartitionKey $partitionKey
 
             $result | Should -BeExactly $response
         }
@@ -104,7 +104,7 @@ InModuleScope cosmos-db {
                 throw [System.Net.WebException]::new("", $null, [System.Net.WebExceptionStatus]::UnknownError, $response)
             }
 
-            $result = Get-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -RecordId $MOCK_RECORD_ID
+            $result = Remove-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -RecordId $MOCK_RECORD_ID
 
             $result | Should -BeExactly $response
         }

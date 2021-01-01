@@ -2,7 +2,7 @@ Get-Module cosmos-db | Remove-Module -Force
 Import-Module $PSScriptRoot\..\cosmos-db\cosmos-db.psm1 -Force
 
 InModuleScope cosmos-db {
-    Describe "Get-CosmosDbRecord" {                    
+    Describe "Get-AllCosmosDbRecords" {                    
         BeforeAll {
             Use-CosmosDbInternalFlag -EnableCaching $false
 
@@ -15,7 +15,6 @@ InModuleScope cosmos-db {
             $MOCK_DB = "MOCK_DB"
             $MOCK_CONTAINER = "MOCK_CONTAINER"
             $MOCK_COLLECTION = "MOCK_COLLECTION"
-            $MOCK_RECORD_ID = "MOCK_RECORD_ID"
 
             $MOCK_AUTH_HEADER = "MockAuthHeader"
 
@@ -26,18 +25,18 @@ InModuleScope cosmos-db {
 
                 $verb | Should -Be "get"
                 $resourceType | Should -Be "docs"
-                $resourceUrl | Should -Be "dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/docs/$MOCK_RECORD_ID"
+                $resourceUrl | Should -Be "dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION"
             }
 
             Function VerifyInvokeCosmosDbApiRequest($verb, $url, $body, $headers, $partitionKey=$MOCK_RECORD_ID)
             {
                 $verb | Should -Be "get"
-                $url | Should -Be "https://$MOCK_DB.documents.azure.com/dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/docs/$MOCK_RECORD_ID"        
+                $url | Should -Be "https://$MOCK_DB.documents.azure.com/dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/docs"        
                 $body | Should -Be $null
                     
                 $global:capturedNow | Should -Not -Be $null
 
-                $expectedHeaders = Get-CommonHeaders -now $global:capturedNow -encodedAuthString $MOCK_AUTH_HEADER -PartitionKey $partitionKey -isQuery $true
+                $expectedHeaders = Get-CommonHeaders -now $global:capturedNow -encodedAuthString $MOCK_AUTH_HEADER -isQuery $true
             
                 AssertHashtablesEqual $expectedHeaders $headers
             }
@@ -53,13 +52,14 @@ InModuleScope cosmos-db {
             }
         }
 
-        It "Sends correct request with default partition key" {    
+        It "Sends correct request" {    
             $response = @{
                 StatusCode = 200;
-                Content = "{}"
+                Content = "{}";
+                Headers = @{};
             }
 
-            Mock Invoke-CosmosDbApiRequest {
+            Mock Invoke-CosmosDbApiRequestWithContinuation {
                 param($verb, $url, $body, $headers) 
                 
                 VerifyInvokeCosmosDbApiRequest $verb $url $body $headers | Out-Null
@@ -67,30 +67,50 @@ InModuleScope cosmos-db {
                 $response
             }
 
-            $result = Get-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -RecordId $MOCK_RECORD_ID
+            $result = Get-AllCosmosDbRecords -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION
 
             $result | Should -BeExactly $response
+
+            Assert-MockCalled Invoke-CosmosDbApiRequestWithContinuation -Times 1
         }
 
-        It "Sends correct request with custom partition key" {    
-            $response = @{
+        It "Returns multiple responses" {
+            $response1 = @{
                 StatusCode = 200;
-                Content = "{}"
+                Content = "1";
+                Headers = @{};
             }
 
-            $partitionKey = "MOCK_PARTITION_KEY"
+            $response2 = @{
+                StatusCode = 200;
+                Content = "1";
+                Headers = @{};
+            }
 
-            Mock Invoke-CosmosDbApiRequest {
+            $response3 = @{
+                StatusCode = 200;
+                Content = "1";
+                Headers = @{};
+            }
+
+            Mock Invoke-CosmosDbApiRequestWithContinuation {
                 param($verb, $url, $body, $headers) 
                 
-                VerifyInvokeCosmosDbApiRequest $verb $url $body $headers $partitionKey | Out-Null
+                VerifyInvokeCosmosDbApiRequest $verb $url $body $headers | Out-Null
         
-                $response
+                $response1
+                $response2
+                $response3
             }
 
-            $result = Get-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -RecordId $MOCK_RECORD_ID -PartitionKey $partitionKey
+            $result = Get-AllCosmosDbRecords -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION
 
-            $result | Should -BeExactly $response
+            $result.Count | Should -Be 3
+            $result[0] | Should -BeExactly $response1
+            $result[1] | Should -BeExactly $response2
+            $result[2] | Should -BeExactly $response3
+
+            Assert-MockCalled Invoke-CosmosDbApiRequestWithContinuation -Times 1
         }
 
         It "Should handle exceptions gracefully" {    
@@ -104,7 +124,7 @@ InModuleScope cosmos-db {
                 throw [System.Net.WebException]::new("", $null, [System.Net.WebExceptionStatus]::UnknownError, $response)
             }
 
-            $result = Get-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -RecordId $MOCK_RECORD_ID
+            $result = Get-AllCosmosDbRecords -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION
 
             $result | Should -BeExactly $response
         }

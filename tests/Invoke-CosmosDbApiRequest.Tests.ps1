@@ -3,6 +3,8 @@ Import-Module $PSScriptRoot\..\cosmos-db\cosmos-db.psm1 -Force
 
 InModuleScope cosmos-db {
     BeforeAll {
+        Use-CosmosDbInternalFlag -EnableCaching $false
+        
         . $PSScriptRoot\Utils.ps1
     }
 
@@ -38,7 +40,8 @@ InModuleScope cosmos-db {
                 Nested = @{
                     Key1 = "Value1";
                     Key2 = 2;
-                } 
+                };
+                Array = @(1, 2, 3, 4);
             }
             $headers = @{}
             
