@@ -19,8 +19,7 @@ InModuleScope cosmos-db {
 
             $MOCK_AUTH_HEADER = "MockAuthHeader"
 
-            Function VerifyGetAuthHeader($ResourceGroup, $SubscriptionId, $Database, $verb, $resourceType, $resourceUrl, $now)
-            {
+            Function VerifyGetAuthHeader($ResourceGroup, $SubscriptionId, $Database, $verb, $resourceType, $resourceUrl, $now) {
                 $ResourceGroup | Should -Be $MOCK_RG
                 $SubscriptionId | Should -Be $MOCK_SUB
 
@@ -29,8 +28,7 @@ InModuleScope cosmos-db {
                 $resourceUrl | Should -Be "dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/docs/$MOCK_RECORD_ID"
             }
 
-            Function VerifyInvokeCosmosDbApiRequest($verb, $url, $body, $headers, $partitionKey=$MOCK_RECORD_ID)
-            {
+            Function VerifyInvokeCosmosDbApiRequest($verb, $url, $body, $headers, $partitionKey = $MOCK_RECORD_ID) {
                 $verb | Should -Be "delete"
                 $url | Should -Be "https://$MOCK_DB.documents.azure.com/dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/docs/$MOCK_RECORD_ID"        
                 $body | Should -Be $null
@@ -56,7 +54,7 @@ InModuleScope cosmos-db {
         It "Sends correct request with default partition key" {    
             $response = @{
                 StatusCode = 200;
-                Content = "{}"
+                Content    = "{}"
             }
 
             Mock Invoke-CosmosDbApiRequest {
@@ -75,7 +73,7 @@ InModuleScope cosmos-db {
         It "Sends correct request with custom partition key" {    
             $response = @{
                 StatusCode = 200;
-                Content = "{}"
+                Content    = "{}"
             }
 
             $partitionKey = "MOCK_PARTITION_KEY"
@@ -89,6 +87,84 @@ InModuleScope cosmos-db {
             }
 
             $result = Remove-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -RecordId $MOCK_RECORD_ID -PartitionKey $partitionKey
+
+            $result | Should -BeExactly $response
+        }
+
+        It "Sends correct request with input object instead of id" {    
+            $response = @{
+                StatusCode = 200;
+                Content    = "{}"
+            }
+
+            Mock Invoke-CosmosDbApiRequest {
+                param($verb, $url, $body, $headers) 
+                
+                VerifyInvokeCosmosDbApiRequest $verb $url $body $headers | Out-Null
+        
+                $response
+            }
+
+            $obj = @{
+                id = $MOCK_RECORD_ID
+            }
+
+            $result = $obj | Remove-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION
+
+            $result | Should -BeExactly $response
+        }
+
+        It "Sends correct request with input object and partition key" {    
+            $response = @{
+                StatusCode = 200;
+                Content    = "{}"
+            }
+
+            $partitionKey = "MOCK_PARTITION_KEY"
+
+            Mock Invoke-CosmosDbApiRequest {
+                param($verb, $url, $body, $headers) 
+                
+                VerifyInvokeCosmosDbApiRequest $verb $url $body $headers $partitionKey | Out-Null
+        
+                $response
+            }
+
+            $obj = @{
+                id = $MOCK_RECORD_ID
+            }
+
+            $result = $obj | Remove-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -PartitionKey $partitionKey
+
+            $result | Should -BeExactly $response
+        }
+
+        It "Sends correct request with input object and partition key callback" {    
+            $response = @{
+                StatusCode = 200;
+                Content    = "{}"
+            }
+
+            $partitionKey = "MOCK_PARTITION_KEY"
+
+            Mock Invoke-CosmosDbApiRequest {
+                param($verb, $url, $body, $headers) 
+                
+                VerifyInvokeCosmosDbApiRequest $verb $url $body $headers $partitionKey | Out-Null
+        
+                $response
+            }
+
+            $obj = @{
+                id = $MOCK_RECORD_ID
+            }
+
+            $result = $obj | Remove-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -GetPartitionKeyBlock { 
+                param($input)
+
+                $input | Should -BeExactly $obj | Out-Null
+                $partitionKey
+            }
 
             $result | Should -BeExactly $response
         }
