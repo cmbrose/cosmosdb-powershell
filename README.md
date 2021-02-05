@@ -209,10 +209,11 @@ Remove-CosmosDbRecord ...
 | Database | The database name | Yes |
 | Container | The container name inside the database | Yes |
 | Collection | The collection name inside the container | Yes |
-| RecordId | The resource id | Yes |
+| RecordId | The resource id | No - if not set, must supply `RecordId` |
+| Object | The record to delete - must minimally have an `id` property | No - if not set, must supply `RecordId`<br/>Accepts value from pipeline |
 | SubscriptionId | The Azure Subscription Id | No - defaults to whatever `az` defaults to |
 | PartitionKey | The partition key of the resource | No - defaults to `Id`<br/>Must be set if the collection uses a different parition scheme |
-
+| GetPartitionKeyBlock | Callback to get the `PartitionKey` from `Object` - useful in pipelines | No - used only if `PartitionKey` is not set |
 
 ### Use-CosmosDbInternalFlag
 

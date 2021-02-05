@@ -1,6 +1,10 @@
 # Release Notes
 All notable changes and release history of the "cosmos-db" module will be documented in this file.
 
+## 1.9
+* Add support for pipelined objects in `Remove-CosmosDbRecord`
+* Add optional `GetPartitionKeyBlock` argument to `Remove-CosmosDbRecord`
+
 ## 1.8
 * Bugfix for continuation tokens on Powershell version 7+
 
