@@ -67,7 +67,7 @@ $records = Get-AllCosmosDbRecords ...
 
 Queries the DB, returns the HTTP response. The records will be within the `Documents` property of the result.
 
-Unfortunately, queries like aggregates, `TOP`, and `DISTINCT` are not supported - see the Cosmos DB docs [here](https://docs.microsoft.com/en-us/rest/api/cosmos-db/querying-cosmosdb-resources-using-the-rest-api#queries-that-cannot-be-served-by-gateway).
+This function is also used to perform aggregate queries (e.g. `count`, `TOP`, etc) - see examples below.
 
 #### Examples
 
@@ -94,6 +94,18 @@ $parameters = @{
 $records = Search-CosmosDbRecords -Query "SELECT * FROM c WHERE c.Id = @id and c.Number > @number" -Parameters $parameters ...
 | Get-CosmosDbRecordContent 
 | % Documents
+
+# Query TOP 10 records
+$records = Search-CosmosDbRecords -Query "SELECT TOP 10 * FROM c" ...
+| Get-CosmosDbRecordContent 
+| % Documents
+
+# Count records by a property (aggregate example)
+# Note: the results are within the Payload property of Documents and the aggregate value is inside the Item property of the aggregate value
+$records = Search-CosmosDbRecords -Query "SELECT count(1) as Cnt, c.Property FROM c GROUP BY c.Property" ...
+| Get-CosmosDbRecordContent 
+| % { $_.Documents.Payload }
+| % { @{ Property = $_.Property; Count = $_.Cnt.Item} }
 ```
 
 #### Parameters
