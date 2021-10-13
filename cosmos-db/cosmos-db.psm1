@@ -71,7 +71,14 @@ Function Get-Base64Masterkey([string]$ResourceGroup, [string]$Database, [string]
 }
 
 Function Get-Signature([string]$verb, [string]$resourceType, [string]$resourceUrl, [string]$now) {
-    ((@($verb, $resourceType, $resourceUrl, $now, "") -join "`n") + "`n").ToLower()
+    $parts = @(
+        $verb.ToLower(),
+        $resourceType.ToLower(),
+        $resourceUrl,
+        $now.ToLower(),
+        ""
+    )
+    (($parts -join "`n") + "`n")
 }
 
 Function Get-Base64EncryptedSignatureHash([string]$masterKey, [string]$signature) {

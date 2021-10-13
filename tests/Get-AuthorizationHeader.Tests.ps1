@@ -30,7 +30,7 @@ InModuleScope cosmos-db {
         It "Returns the correct signature hashed with the master key" {    
             $result = Get-AuthorizationHeader  -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Verb $MOCK_VERB -ResourceType $MOCK_RESOURCE_TYPE -ResourceUrl $MOCK_RESOURCE_URL -Now $MOCK_NOW
 
-            $expectedSignature = "$MOCK_VERB`n$MOCK_RESOURCE_TYPE`n$MOCK_RESOURCE_URL`n$MOCK_NOW`n`n".ToLower()
+            $expectedSignature = "$($MOCK_VERB.ToLower())`n$($MOCK_RESOURCE_TYPE.ToLower())`n$MOCK_RESOURCE_URL`n$($MOCK_NOW.ToLower())`n`n"
 
             $hasher = New-Object System.Security.Cryptography.HMACSHA256 -Property @{ Key = $MOCK_MASTER_KEY_BYTES }
             $sigBinary=[System.Text.Encoding]::UTF8.GetBytes($expectedSignature)
