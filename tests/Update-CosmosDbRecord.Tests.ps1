@@ -204,6 +204,8 @@ InModuleScope cosmos-db {
         It "Should handle exceptions gracefully" {    
             $response = [System.Net.HttpWebResponse]@{}
 
+            $recordResponse = [PSCustomObject]@{}
+
             $payload = @{
                 id = $MOCK_RECORD_ID;
                 key1 = "value1";
@@ -218,9 +220,18 @@ InModuleScope cosmos-db {
                 throw [System.Net.WebException]::new("", $null, [System.Net.WebExceptionStatus]::UnknownError, $response)
             }
 
+            Mock Get-ExceptionResponseOrThrow {
+                param($err)
+
+                $err.Exception.Response | Should -BeExactly $response
+
+                $recordResponse
+            }
+
             $result = $payload | Update-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -PartitionKey $MOCK_PARTITION_KEY
 
-            $result | Should -BeExactly $response
+            $result | Should -BeExactly $recordResponse
+            Assert-MockCalled Get-ExceptionResponseOrThrow -Times 1
         }
     }
 }

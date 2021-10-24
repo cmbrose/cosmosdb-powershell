@@ -57,15 +57,11 @@ InModuleScope cosmos-db {
             
         It "Throws useful error for unknown errors" {
             $errorMessage = "Mock error message"
-            $errorResponse = @{
-                message = $errorMessage
-            } | ConvertTo-Json
 
             $response = [pscustomobject] @{
                 StatusCode = 401;
+                Content = ( @{ Message = $errorMessage; } | ConvertTo-Json);
             }
-            $response | Add-Member -memberType ScriptMethod -Name "GetResponseStream" -Value { [IO.MemoryStream]::new([Text.Encoding]::UTF8.GetBytes($errorResponse)) } -Force
-
 
             { $response | Get-CosmosDbRecordContent } | Should -Throw "Request failed with status code 401 with message`n`n$errorMessage"
         }

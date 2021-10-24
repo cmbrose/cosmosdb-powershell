@@ -125,7 +125,7 @@ InModuleScope cosmos-db {
                 $Collection | Should -Be $MOCK_COLLECTION | Out-Null
                 $SubscriptionId | Should -Be $MOCK_SUB | Out-Null
 
-                $MOCK_PARTITION_RANGES
+                @{ Ranges = $MOCK_PARTITION_RANGES }
             }
         }
 
@@ -386,6 +386,8 @@ InModuleScope cosmos-db {
         It "Should handle errors in partition key range request gracefully" {    
             $errorResponse = [System.Net.HttpWebResponse]@{}
 
+            $recordResponse = [PSCustomObject]@{}
+
             Mock Get-PartitionKeyRangesOrError {
                 param($ResourceGroup, $Database, $Container, $Collection, $SubscriptionId)
 
@@ -395,18 +397,29 @@ InModuleScope cosmos-db {
                 $Collection | Should -Be $MOCK_COLLECTION | Out-Null
                 $SubscriptionId | Should -Be $MOCK_SUB | Out-Null
         
-                return [System.Net.WebException]::new("", $null, [System.Net.WebExceptionStatus]::UnknownError, $errorResponse)
+                return @{ Exception = [System.Net.WebException]::new("", $null, [System.Net.WebExceptionStatus]::UnknownError, $errorResponse) }
+            }
+
+            Mock Get-ExceptionResponseOrThrow {
+                param($err)
+
+                $err.Exception.Response | Should -BeExactly $errorResponse
+
+                $recordResponse
             }
 
             $result = Search-CosmosDbRecordsWithExtraFeatures -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -Query $MOCK_QUERY
 
-            $result | Should -BeExactly $errorResponse
+            $result | Should -BeExactly $recordResponse
 
             Assert-MockCalled Get-PartitionKeyRangesOrError -Times 1
+            Assert-MockCalled Get-ExceptionResponseOrThrow -Times 1
         }
 
         It "Should handle exceptions in query plan request gracefully" {    
             $errorResponse = [System.Net.HttpWebResponse]@{}
+
+            $recordResponse = [PSCustomObject]@{}
 
             $expectedBody = @{
                 query = $MOCK_QUERY;
@@ -421,16 +434,27 @@ InModuleScope cosmos-db {
                 throw [System.Net.WebException]::new("", $null, [System.Net.WebExceptionStatus]::UnknownError, $errorResponse)
             }
 
+            Mock Get-ExceptionResponseOrThrow {
+                param($err)
+
+                $err.Exception.Response | Should -BeExactly $errorResponse
+
+                $recordResponse
+            }
+
             $result = Search-CosmosDbRecordsWithExtraFeatures -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -Query $MOCK_QUERY
 
-            $result | Should -BeExactly $errorResponse
+            $result | Should -BeExactly $recordResponse
 
             Assert-MockCalled Get-PartitionKeyRangesOrError -Times 1
-            Assert-MockCalled Invoke-CosmosDbApiRequest -Times 1            
+            Assert-MockCalled Invoke-CosmosDbApiRequest -Times 1
+            Assert-MockCalled Get-ExceptionResponseOrThrow -Times 1     
         }
 
         It "Should handle exceptions in query requests gracefully" {    
             $errorResponse = [System.Net.HttpWebResponse]@{}
+
+            $recordResponse = [PSCustomObject]@{}
 
             $expectedBody = @{
                 query = $MOCK_QUERY;
@@ -462,13 +486,22 @@ InModuleScope cosmos-db {
                 throw [System.Net.WebException]::new("", $null, [System.Net.WebExceptionStatus]::UnknownError, $errorResponse)
             }
 
+            Mock Get-ExceptionResponseOrThrow {
+                param($err)
+
+                $err.Exception.Response | Should -BeExactly $errorResponse
+
+                $recordResponse
+            }
+
             $result = Search-CosmosDbRecordsWithExtraFeatures -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -Query $MOCK_QUERY
 
-            $result | Should -BeExactly $errorResponse
+            $result | Should -BeExactly $recordResponse
 
             Assert-MockCalled Get-PartitionKeyRangesOrError -Times 1
             Assert-MockCalled Invoke-CosmosDbApiRequest -Times 1
             Assert-MockCalled Invoke-CosmosDbApiRequestWithContinuation -Times 1
+            Assert-MockCalled Get-ExceptionResponseOrThrow -Times 1
         }
 
         It "Sends correct request with filtered ranges (experimental)" {   
