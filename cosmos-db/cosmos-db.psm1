@@ -906,10 +906,10 @@ Function Get-CosmosDbRecordContent([parameter(ValueFromPipeline)]$RecordResponse
             }
         }
         elseif ($code -eq 404) {
-            if ($content.Message -contains "Owner resource does not exist") {
+            if ($content.Message -like "*Owner resource does not exist*") {
                 throw "Database does not exist"
             }
-            
+
             throw "Record not found"
         }
         elseif ($code -eq 429) {
