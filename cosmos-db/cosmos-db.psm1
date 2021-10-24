@@ -151,15 +151,12 @@ Function Get-QueryParametersAsNameValuePairs($obj) {
     throw "Cannot convert type $type to Name-Value pairs"
 }
 
-Function New-ResponseMessage($webResponse) {
-    [PSCustomObject]@{
-        StatusCode = $webResponse.StatusCode;
-        Content = $webResponse.Content;
-        RawResponse = $webResponse;
-    }
-}
-
 Function Get-ExceptionResponseOrThrow($err) {
+    # Because PS Desktop and Core use different exception types for HTTP errors, it's hard to extract the content is a consistent
+    # manner. Instead, this is used on exceptions to just pull out the details which are most useful (those needed by Get-CosmosDbRecordContent)
+    # into a consistent wrapper object. The raw HTTP response object is included for debugging, but will be inconsistently typed
+    # based on the platform. As more fields are needed, they can been pulled out into the wrapper.
+
     if ($err.Exception.Response) {
         $msg = @{
             StatusCode = $err.Exception.Response.StatusCode;
@@ -171,7 +168,7 @@ Function Get-ExceptionResponseOrThrow($err) {
             # See: https://stackoverflow.com/questions/18771424/how-to-get-powershell-invoke-restmethod-to-return-body-of-http-500-code-response
             $msg.Content = $err.ErrorDetails.Message
         } else {
-            # Pre-core we can re-read the content stream
+            # In Desktop we can re-read the content stream
             $result = $err.Exception.Response.GetResponseStream()
             $reader = New-Object System.IO.StreamReader($result)
             $reader.BaseStream.Position = 0
