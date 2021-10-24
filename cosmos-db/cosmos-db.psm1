@@ -257,9 +257,11 @@ Function Get-PartitionKeyRangesOrError
 
         $ranges = $response.partitionKeyRanges
 
-        Set-CacheValue -Key $cacheKey -Value $ranges -Cache $PARTITION_KEY_RANGE_CACHE -ExpirationHours 6
+        $result = @{ Ranges = $ranges }
 
-        @{ Ranges = $ranges }
+        Set-CacheValue -Key $cacheKey -Value $result -Cache $PARTITION_KEY_RANGE_CACHE -ExpirationHours 6
+
+        $result
     } 
     catch {
         @{ ErrorRecord = $_ }

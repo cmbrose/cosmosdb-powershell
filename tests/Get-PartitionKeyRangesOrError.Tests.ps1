@@ -2,10 +2,12 @@ Get-Module cosmos-db | Remove-Module -Force
 Import-Module $PSScriptRoot\..\cosmos-db\cosmos-db.psm1 -Force
 
 InModuleScope cosmos-db {
-    Describe "Get-PartitionKeyRangesOrError" {                    
-        BeforeAll {
+    Describe "Get-PartitionKeyRangesOrError" {     
+        BeforeEach {
             Use-CosmosDbInternalFlag -EnableCaching $false
+        }
 
+        BeforeAll {
             . $PSScriptRoot\Utils.ps1    
 
             $global:capturedNow = $null
@@ -74,6 +76,44 @@ InModuleScope cosmos-db {
             }
 
             $result = Get-PartitionKeyRangesOrError -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION
+
+            $result.ErrorRecord | Should -BeNull
+            AssertArraysEqual $expectedRanges $result.Ranges
+        }
+
+        It "Handles cached results properly" {
+            Use-CosmosDbInternalFlag -EnableCaching $true
+            $PARTITION_KEY_RANGE_CACHE = @{}
+
+            $expectedRanges = @(
+                @{ minInclusive = ""; maxExclusive = "aa"; id = 1 };
+                @{ minInclusive = "aa"; maxExclusive = "cc"; id = 2 };
+            )
+
+            $response = @{
+                StatusCode = 200;
+                Content = (@{ partitionKeyRanges = $expectedRanges } | ConvertTo-Json -Depth 100)
+            }
+
+            Mock Invoke-CosmosDbApiRequest {
+                param($verb, $url, $body, $headers) 
+                
+                VerifyInvokeCosmosDbApiRequest $verb $url $body $headers | Out-Null
+        
+                $response
+            }
+
+            Write-host "1"
+            $_ = Get-PartitionKeyRangesOrError -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION
+
+            $urlKey = "https://$MOCK_DB.documents.azure.com/dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/pkranges" 
+            $cache = Get-CacheValue -Key $urlKey -Cache $PARTITION_KEY_RANGE_CACHE
+
+            $cache.ErrorRecord | Should -BeNull
+            AssertArraysEqual $expectedRanges $cache.Ranges
+
+            $result = Get-PartitionKeyRangesOrError -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION
+            Assert-MockCalled Invoke-CosmosDbApiRequest -Times 1
 
             $result.ErrorRecord | Should -BeNull
             AssertArraysEqual $expectedRanges $result.Ranges
