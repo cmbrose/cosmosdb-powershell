@@ -39,6 +39,17 @@ InModuleScope cosmos-db {
             $result | Should -Be $null
         }
 
+        It "Throws not found for 404 - DB not found" {
+            $response = @{
+                StatusCode = 404;
+                Content = (@{
+                    Message = "{`"Errors`":[`"Owner resource does not exist`"]}"
+                } | ConvertTo-Json)
+            }
+
+            { $response | Get-CosmosDbRecordContent } | Should -Throw "Database does not exist"
+        }
+        
         It "Throws not found for 404" {
             $response = @{
                 StatusCode = 404;
@@ -46,7 +57,7 @@ InModuleScope cosmos-db {
 
             { $response | Get-CosmosDbRecordContent } | Should -Throw "Record not found"
         }
-        
+
         It "Throws throttle for 429" {
             $response = @{
                 StatusCode = 429;
@@ -57,15 +68,11 @@ InModuleScope cosmos-db {
             
         It "Throws useful error for unknown errors" {
             $errorMessage = "Mock error message"
-            $errorResponse = @{
-                message = $errorMessage
-            } | ConvertTo-Json
 
             $response = [pscustomobject] @{
                 StatusCode = 401;
+                Content = ( @{ Message = $errorMessage; } | ConvertTo-Json);
             }
-            $response | Add-Member -memberType ScriptMethod -Name "GetResponseStream" -Value { [IO.MemoryStream]::new([Text.Encoding]::UTF8.GetBytes($errorResponse)) } -Force
-
 
             { $response | Get-CosmosDbRecordContent } | Should -Throw "Request failed with status code 401 with message`n`n$errorMessage"
         }

@@ -16,6 +16,8 @@ InModuleScope cosmos-db {
 
     Describe "Invoke-CosmosDbApiRequestWithContinuation" {
         It "Handles responses without continuation header" {  
+            $PSVersionTable.PSEdition = "Desktop"
+
             $MOCK_VERB = "MOCK_VERB"
             $MOCK_URL = "MOCK_URL"
             $MOCK_BODY = @{
@@ -92,6 +94,8 @@ InModuleScope cosmos-db {
         }
 
         It "Handles continuation response headers" {  
+            $PSVersionTable.PSEdition = "Desktop"
+            
             $continuationTokens = @($null, "1", "2", "3")
 
             $MOCK_VERB = "MOCK_VERB"

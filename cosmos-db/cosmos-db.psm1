@@ -151,12 +151,36 @@ Function Get-QueryParametersAsNameValuePairs($obj) {
     throw "Cannot convert type $type to Name-Value pairs"
 }
 
-Function Get-RequestErrorDetails($response) {
-    $result = $response.GetResponseStream()
-    $reader = New-Object System.IO.StreamReader($result)
-    $reader.BaseStream.Position = 0
-    $reader.DiscardBufferedData()
-    $reader.ReadToEnd();
+Function Get-ExceptionResponseOrThrow($err) {
+    # Because PS Desktop and Core use different exception types for HTTP errors, it's hard to extract the content is a consistent
+    # manner. Instead, this is used on exceptions to just pull out the details which are most useful (those needed by Get-CosmosDbRecordContent)
+    # into a consistent wrapper object. The raw HTTP response object is included for debugging, but will be inconsistently typed
+    # based on the platform. As more fields are needed, they can been pulled out into the wrapper.
+
+    if ($err.Exception.Response) {
+        $msg = @{
+            StatusCode = $err.Exception.Response.StatusCode;
+            RawResponse = $err.Exception.Response;
+        }
+
+        if ($PSVersionTable.PSEdition -eq "Core") {
+            # In PS Core, the body is eaten and put into this message
+            # See: https://stackoverflow.com/questions/18771424/how-to-get-powershell-invoke-restmethod-to-return-body-of-http-500-code-response
+            $msg.Content = $err.ErrorDetails.Message
+        } else {
+            # In Desktop we can re-read the content stream
+            $result = $err.Exception.Response.GetResponseStream()
+            $reader = New-Object System.IO.StreamReader($result)
+            $reader.BaseStream.Position = 0
+            $reader.DiscardBufferedData()
+
+            $msg.Content = $reader.ReadToEnd()
+        }
+
+        return [PSCustomObject]$msg
+    } else {
+        throw $err.Exception
+    }
 }
 
 Function Invoke-CosmosDbApiRequest([string]$verb, [string]$url, $headers, $body = $null) {
@@ -235,10 +259,10 @@ Function Get-PartitionKeyRangesOrError
 
         Set-CacheValue -Key $cacheKey -Value $ranges -Cache $PARTITION_KEY_RANGE_CACHE -ExpirationHours 6
 
-        $ranges
+        @{ Ranges = $ranges }
     } 
-    catch [System.Net.WebException] {
-        $_.Exception
+    catch {
+        @{ Exception = $_.Exception }
     } 
 }
 
@@ -330,9 +354,9 @@ Function Get-CosmosDbRecord(
 
             Invoke-CosmosDbApiRequest -Verb $GET_VERB -Url $url -Headers $headers
         }
-        catch [System.Net.WebException] {
-            $_.Exception.Response
-        }
+        catch {
+            Get-ExceptionResponseOrThrow $_
+        } 
     }
 }
 
@@ -406,9 +430,9 @@ Function Get-AllCosmosDbRecords(
 
             Invoke-CosmosDbApiRequestWithContinuation -verb $GET_VERB -url $url -Headers $headers
         }
-        catch [System.Net.WebException] {
-            $_.Exception.Response
-        }
+        catch {
+            Get-ExceptionResponseOrThrow $_
+        } 
         $ProgressPreference = $tmp
     }
 }
@@ -514,9 +538,9 @@ Function Search-CosmosDbRecords(
 
             Invoke-CosmosDbApiRequestWithContinuation -verb $POST_VERB -url $url -Body $body -Headers $headers
         }
-        catch [System.Net.WebException] {
-            $_.Exception.Response
-        }
+        catch {
+            Get-ExceptionResponseOrThrow $_
+        } 
     }
 }
 
@@ -547,9 +571,11 @@ Function Search-CosmosDbRecordsWithExtraFeatures
     }
     process {
         try {
-            if ($allPartitionKeyRangesOrError -is [System.Net.WebException]) {
-                throw $allPartitionKeyRangesOrError
+            if ($allPartitionKeyRangesOrError.Exception) {
+                throw $allPartitionKeyRangesOrError.Exception
             }
+
+            $ranges = $allPartitionKeyRangesOrError.Ranges
 
             $body = @{
                 query      = $Query;
@@ -579,10 +605,10 @@ Function Search-CosmosDbRecordsWithExtraFeatures
 
             $partitionKeyRanges = 
             if ($env:COSMOS_DB_FLAG_ENABLE_PARTITION_KEY_RANGE_SEARCHES -eq 1) {
-                Get-FilteredPartitionKeyRangesForQuery -AllRanges $allPartitionKeyRangesOrError -QueryRanges $queryPlan.QueryRanges
+                Get-FilteredPartitionKeyRangesForQuery -AllRanges $ranges -QueryRanges $queryPlan.QueryRanges
             }
             else {
-                $allPartitionKeyRangesOrError
+                $ranges
             }
 
             foreach ($partitionKeyRange in $partitionKeyRanges) {
@@ -591,9 +617,9 @@ Function Search-CosmosDbRecordsWithExtraFeatures
                 Invoke-CosmosDbApiRequestWithContinuation -verb $POST_VERB -url $url -Body $body -Headers $headers
             }
         }
-        catch [System.Net.WebException] {
-            $_.Exception.Response
-        }
+        catch {
+            Get-ExceptionResponseOrThrow $_
+        } 
     }
 }
 
@@ -675,9 +701,9 @@ Function New-CosmosDbRecord {
 
             Invoke-CosmosDbApiRequest -Verb $POST_VERB -Url $url -Body $Object -Headers $headers
         }
-        catch [System.Net.WebException] {
-            $_.Exception.Response
-        }
+        catch {
+            Get-ExceptionResponseOrThrow $_
+        } 
     }
 }
 
@@ -759,9 +785,9 @@ Function Update-CosmosDbRecord {
 
             Invoke-CosmosDbApiRequest -Verb $PUT_VERB -Url $url -Body $Object -Headers $headers
         }
-        catch [System.Net.WebException] {
-            $_.Exception.Response
-        }
+        catch {
+            Get-ExceptionResponseOrThrow $_
+        } 
     }
 }
 
@@ -852,31 +878,42 @@ Function Remove-CosmosDbRecord {
 
             Invoke-CosmosDbApiRequest -Verb $DELETE_VERB -Url $url -Headers $headers
         }
-        catch [System.Net.WebException] {
-            $_.Exception.Response
-        }
+        catch {
+            Get-ExceptionResponseOrThrow $_
+        } 
     }
 }
 
 Function Get-CosmosDbRecordContent([parameter(ValueFromPipeline)]$RecordResponse) {   
     process {
         $code = [int]$RecordResponse.StatusCode
-        if ($code -lt 300) {
+        $content = 
             if ($RecordResponse.Content) {
                 $RecordResponse.Content | ConvertFrom-Json
+            } else {
+                $null
+            }
+
+        if ($code -lt 300) {
+            if ($RecordResponse.Content) {
+                $content
             }
             else {
                 $null
             }
         }
         elseif ($code -eq 404) {
+            if ($content.Message -like "*Owner resource does not exist*") {
+                throw "Database does not exist"
+            }
+
             throw "Record not found"
         }
         elseif ($code -eq 429) {
             throw "Request rate limited"
         }
         else {
-            $message = Get-RequestErrorDetails $RecordResponse | ConvertFrom-Json | % Message
+            $message = $content.Message
             throw "Request failed with status code $code with message`n`n$message"
         }
     }
