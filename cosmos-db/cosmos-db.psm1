@@ -262,7 +262,7 @@ Function Get-PartitionKeyRangesOrError
         @{ Ranges = $ranges }
     } 
     catch {
-        @{ Exception = $_.Exception }
+        @{ ErrorRecord = $_ }
     } 
 }
 
@@ -570,11 +570,11 @@ Function Search-CosmosDbRecordsWithExtraFeatures
         $allPartitionKeyRangesOrError = Get-PartitionKeyRangesOrError -ResourceGroup $ResourceGroup -Database $Database -Container $Container -Collection $Collection -SubscriptionId $SubscriptionId
     }
     process {
+        if ($allPartitionKeyRangesOrError.ErrorRecord) {
+            return Get-ExceptionResponseOrThrow $allPartitionKeyRangesOrError.ErrorRecord
+        }
+        
         try {
-            if ($allPartitionKeyRangesOrError.Exception) {
-                throw $allPartitionKeyRangesOrError.Exception
-            }
-
             $ranges = $allPartitionKeyRangesOrError.Ranges
 
             $body = @{
