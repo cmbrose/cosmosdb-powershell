@@ -75,7 +75,7 @@ InModuleScope cosmos-db {
 
             $result = Get-PartitionKeyRangesOrError -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION
 
-            $result.Exception | Should -BeNull
+            $result.ErrorRecord | Should -BeNull
             AssertArraysEqual $expectedRanges $result.Ranges
         }
 
@@ -93,7 +93,7 @@ InModuleScope cosmos-db {
             $result = Get-PartitionKeyRangesOrError -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION
 
             $result.Ranges | Should -BeNull
-            $result.Exception | Should -BeExactly $exception
+            $result.ErrorRecord.Exception | Should -BeExactly $exception
         }
     }
 }

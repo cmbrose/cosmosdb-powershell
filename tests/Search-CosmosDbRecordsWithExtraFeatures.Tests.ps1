@@ -397,7 +397,7 @@ InModuleScope cosmos-db {
                 $Collection | Should -Be $MOCK_COLLECTION | Out-Null
                 $SubscriptionId | Should -Be $MOCK_SUB | Out-Null
         
-                return @{ Exception = [System.Net.WebException]::new("", $null, [System.Net.WebExceptionStatus]::UnknownError, $errorResponse) }
+                return @{ ErrorRecord = @{ Exception = [System.Net.WebException]::new("", $null, [System.Net.WebExceptionStatus]::UnknownError, $errorResponse) } }
             }
 
             Mock Get-ExceptionResponseOrThrow {
