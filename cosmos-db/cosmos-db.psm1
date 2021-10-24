@@ -890,23 +890,33 @@ Function Remove-CosmosDbRecord {
 Function Get-CosmosDbRecordContent([parameter(ValueFromPipeline)]$RecordResponse) {   
     process {
         $code = [int]$RecordResponse.StatusCode
-        
-        if ($code -lt 300) {
+        $content = 
             if ($RecordResponse.Content) {
                 $RecordResponse.Content | ConvertFrom-Json
+            } else {
+                $null
+            }
+
+        if ($code -lt 300) {
+            if ($RecordResponse.Content) {
+                $content
             }
             else {
                 $null
             }
         }
         elseif ($code -eq 404) {
+            if ($content.Message -contains "Owner resource does not exist") {
+                throw "Database does not exist"
+            }
+            
             throw "Record not found"
         }
         elseif ($code -eq 429) {
             throw "Request rate limited"
         }
         else {
-            $message = $RecordResponse.Content | ConvertFrom-Json | % Message
+            $message = $content.Message
             throw "Request failed with status code $code with message`n`n$message"
         }
     }
