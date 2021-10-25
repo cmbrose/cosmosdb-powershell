@@ -244,3 +244,17 @@ Use-CosmosDbInternalFlag -EnableFiddlerDebugging $true
 | EnableFiddlerDebugging | Sets the `az` flag `env:AZURE_CLI_DISABLE_CONNECTION_VERIFICATION` which enables `az` commands with a Fiddler proxy | No - default is disabled |
 | EnableCaching | Enables caching certain values like DB keys, partition ranges, etc. Improves performance of nearly all operations. | No - default is enabled |
 | EnablePartitionKeyRangeSearches | **[Experimental]** Enables filtering `Search` queries to relevant partition ranges instead of a full scan. Improves performance of `Search` commands. | No - default is disabled |
+
+## Error Handling
+
+Any failed requests to the Cosmos DB API are returned from the calling command in the following format:
+
+```json
+{
+    "StatusCode": 404,
+    "Content": "{\"Message\":\"...\" ...}",
+    "RawResponse": { "<HttpResponseMessage (PS7) or WebResponse (PS5)>" }
+}
+```
+
+Failed reponsed can be piped into `Get-CosmosDbRecordContent` in the same way as successful messages. It will check for common issues (record not found, DB not found, throttling, etc) and throw an appropriate message.
