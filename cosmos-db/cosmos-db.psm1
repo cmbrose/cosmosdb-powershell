@@ -22,8 +22,17 @@ Function Get-CollectionsUrl([string]$Container, [string]$Collection) {
     return "$DB_TYPE/$Container/$COLLS_TYPE/$Collection"
 }
 
+# Returns an object with the properties ApiUrl and ResourceUrl.
+# - ApiUrl uses an escaped version of the RecordId to support having characters such as '/' in the record Id and should be used as the API url (e.g. Invoke-WebRequest)
+# - ResourceUrl uses the raw RecordId and should be used in the auth header (e.g. Get-AuthorizationHeader)
 Function Get-DocumentsUrl([string]$Container, [string]$Collection, [string]$RecordId) {
-    return (Get-CollectionsUrl $Container $Collection) + "/$DOCS_TYPE/$RecordId"
+    $collectionsUrl = Get-CollectionsUrl $Container $Collection
+    $encodedRecordId = [uri]::EscapeDataString($RecordId)
+
+    return @{
+        ApiUrl = "$collectionsUrl/$DOCS_TYPE/$encodedRecordId";
+        ResourceUrl = "$collectionsUrl/$DOCS_TYPE/$RecordId";
+    }
 }
 
 Function Get-Time() {
@@ -340,13 +349,13 @@ Function Get-CosmosDbRecord(
     [parameter(Mandatory = $false)][string]$PartitionKey = "") {
     begin {
         $baseUrl = Get-BaseDatabaseUrl $Database
-        $documentUrl = Get-DocumentsUrl $Container $Collection $RecordId
+        $documentUrls = Get-DocumentsUrl $Container $Collection $RecordId
 
-        $url = "$baseUrl/$documentUrl"
+        $url = "$baseUrl/$($documentUrls.ApiUrl)"
 
         $now = Get-Time
 
-        $encodedAuthString = Get-AuthorizationHeader -ResourceGroup $ResourceGroup -SubscriptionId $SubscriptionId -Database $Database -verb $GET_VERB -resourceType $DOCS_TYPE -resourceUrl $documentUrl -now $now
+        $encodedAuthString = Get-AuthorizationHeader -ResourceGroup $ResourceGroup -SubscriptionId $SubscriptionId -Database $Database -verb $GET_VERB -resourceType $DOCS_TYPE -resourceUrl $documentUrls.ResourceUrl -now $now
 
         $requestPartitionKey = if ($PartitionKey) { $PartitionKey } else { $RecordId }
     }
@@ -773,13 +782,13 @@ Function Update-CosmosDbRecord {
     }
     process {
         try {
-            $documentUrl = Get-DocumentsUrl $Container $Collection $Object.id
+            $documentUrls = Get-DocumentsUrl $Container $Collection $Object.id
 
-            $url = "$baseUrl/$documentUrl"
+            $url = "$baseUrl/$($documentUrls.ApiUrl)"
     
             $now = Get-Time
             
-            $encodedAuthString = Get-AuthorizationHeader -ResourceGroup $ResourceGroup -SubscriptionId $SubscriptionId -Database $Database -verb $PUT_VERB -resourceType $DOCS_TYPE -resourceUrl $documentUrl -now $now
+            $encodedAuthString = Get-AuthorizationHeader -ResourceGroup $ResourceGroup -SubscriptionId $SubscriptionId -Database $Database -verb $PUT_VERB -resourceType $DOCS_TYPE -resourceUrl $documentUrls.ResourceUrl -now $now
             
             $requestPartitionKey = if ($PartitionKey) { $PartitionKey } elseif ($GetPartitionKeyBlock) { Invoke-Command -ScriptBlock $GetPartitionKeyBlock -ArgumentList $Object } else { $Object.Id }
 
@@ -866,13 +875,13 @@ Function Remove-CosmosDbRecord {
         try {
             $id = if ($RecordId) { $RecordId } else { $Object.id }
 
-            $documentUrl = Get-DocumentsUrl $Container $Collection $id
+            $documentUrls = Get-DocumentsUrl $Container $Collection $id
 
-            $url = "$baseUrl/$documentUrl"
+            $url = "$baseUrl/$($documentUrls.ApiUrl)"
 
             $now = Get-Time
 
-            $encodedAuthString = Get-AuthorizationHeader -ResourceGroup $ResourceGroup -SubscriptionId $SubscriptionId -Database $Database -verb $DELETE_VERB -resourceType $DOCS_TYPE -resourceUrl $documentUrl -now $now
+            $encodedAuthString = Get-AuthorizationHeader -ResourceGroup $ResourceGroup -SubscriptionId $SubscriptionId -Database $Database -verb $DELETE_VERB -resourceType $DOCS_TYPE -resourceUrl $documentUrls.ResourceUrl -now $now
             
             $requestPartitionKey = if ($PartitionKey) { $PartitionKey } elseif ($GetPartitionKeyBlock) { Invoke-Command -ScriptBlock $GetPartitionKeyBlock -ArgumentList $Object } else { $id }
 

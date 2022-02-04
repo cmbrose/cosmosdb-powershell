@@ -3,7 +3,7 @@ Import-Module $PSScriptRoot\..\cosmos-db\cosmos-db.psm1 -Force
 
 InModuleScope cosmos-db {
     Describe "Get-CosmosDbRecord" {                    
-        BeforeAll {
+        BeforeEach {
             Use-CosmosDbInternalFlag -EnableCaching $false
 
             . $PSScriptRoot\Utils.ps1    
@@ -19,8 +19,7 @@ InModuleScope cosmos-db {
 
             $MOCK_AUTH_HEADER = "MockAuthHeader"
 
-            Function VerifyGetAuthHeader($ResourceGroup, $SubscriptionId, $Database, $verb, $resourceType, $resourceUrl, $now)
-            {
+            Function VerifyGetAuthHeader($ResourceGroup, $SubscriptionId, $Database, $verb, $resourceType, $resourceUrl, $now) {
                 $ResourceGroup | Should -Be $MOCK_RG
                 $SubscriptionId | Should -Be $MOCK_SUB
 
@@ -29,10 +28,9 @@ InModuleScope cosmos-db {
                 $resourceUrl | Should -Be "dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/docs/$MOCK_RECORD_ID"
             }
 
-            Function VerifyInvokeCosmosDbApiRequest($verb, $url, $body, $headers, $partitionKey=$MOCK_RECORD_ID)
-            {
+            Function VerifyInvokeCosmosDbApiRequest($verb, $url, $body, $headers, $apiUriRecordId=$MOCK_RECORD_ID, $partitionKey=$MOCK_RECORD_ID) {
                 $verb | Should -Be "get"
-                $url | Should -Be "https://$MOCK_DB.documents.azure.com/dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/docs/$MOCK_RECORD_ID"        
+                $url | Should -Be "https://$MOCK_DB.documents.azure.com/dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/docs/$apiUriRecordId"        
                 $body | Should -Be $null
                     
                 $global:capturedNow | Should -Not -Be $null
@@ -83,12 +81,45 @@ InModuleScope cosmos-db {
             Mock Invoke-CosmosDbApiRequest {
                 param($verb, $url, $body, $headers) 
                 
-                VerifyInvokeCosmosDbApiRequest $verb $url $body $headers $partitionKey | Out-Null
+                VerifyInvokeCosmosDbApiRequest $verb $url $body $headers -partitionKey $partitionKey | Out-Null
         
                 $response
             }
 
             $result = Get-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -RecordId $MOCK_RECORD_ID -PartitionKey $partitionKey
+
+            $result | Should -BeExactly $response
+        }
+
+        It "Url encodes the record id in the API url" {    
+            $response = @{
+                StatusCode = 200;
+                Content = "{}"
+            }
+
+            $testRecordId = "MOCK/RECORD/ID"
+            $expectedApiRecordId = [uri]::EscapeDataString($testRecordId)
+            $expectedAuthHeaderRecordId = $testRecordId # The id in the auth header should not be encoded
+
+            Mock Invoke-CosmosDbApiRequest {
+                param($verb, $url, $body, $headers) 
+                
+                VerifyInvokeCosmosDbApiRequest $verb $url $body $headers -apiUriRecordId $expectedApiRecordId -partitionKey $testRecordId | Out-Null
+        
+                $response
+            }
+
+            Mock Get-AuthorizationHeader {
+                param($ResourceGroup, $SubscriptionId, $Database, $verb, $resourceType, $resourceUrl, $now)
+        
+                $resourceUrl | Should -Be "dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/docs/$expectedAuthHeaderRecordId"
+        
+                $global:capturedNow = $now
+        
+                $MOCK_AUTH_HEADER
+            }
+
+            $result = Get-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -RecordId $testRecordId
 
             $result | Should -BeExactly $response
         }

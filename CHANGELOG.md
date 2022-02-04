@@ -1,6 +1,16 @@
 # Release Notes
 All notable changes and release history of the "cosmos-db" module will be documented in this file.
 
+## 1.14
+* Fixes a bug where record ids were not encoded in the API calls which broke Get-, Remove-, and Update- for records with ids that contained characters such as `'/'`
+
+## 1.13
+* Consistent handling of request errors in PS7 vs. PS5
+* Gives a better error message if the database doesn't exist
+
+## 1.10
+* Fixes a bug that caused 401s with ids that contained uppercase characters
+
 ## 1.9
 * Add support for pipelined objects in `Remove-CosmosDbRecord`
 * Add optional `GetPartitionKeyBlock` argument to `Remove-CosmosDbRecord`

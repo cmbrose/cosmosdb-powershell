@@ -3,7 +3,7 @@ Import-Module $PSScriptRoot\..\cosmos-db\cosmos-db.psm1 -Force
 
 InModuleScope cosmos-db {
     Describe "Update-CosmosDbRecord" {                    
-        BeforeAll {
+        BeforeEach {
             Use-CosmosDbInternalFlag -EnableCaching $false
             
             . $PSScriptRoot\Utils.ps1    
@@ -199,6 +199,43 @@ InModuleScope cosmos-db {
             $result.Count | Should -Be $payloads.Count
 
             Assert-MockCalled Invoke-CosmosDbApiRequest -Times $payloads.Count
+        }
+        
+        It "Url encodes the record id in the API url" {    
+            $response = @{
+                StatusCode = 200;
+                Content = "{}"
+            }
+
+            $testRecordId = "MOCK/RECORD/ID"
+            $expectedApiRecordId = [uri]::EscapeDataString($testRecordId)
+            $expectedAuthHeaderRecordId = $testRecordId # The id in the auth header should not be encoded
+
+            $payload = @{
+                id = $testRecordId
+            }
+
+            Mock Invoke-CosmosDbApiRequest {
+                param($verb, $url, $body, $headers) 
+
+                VerifyInvokeCosmosDbApiRequest $verb $url $body $payload $headers -expectedId $expectedApiRecordId -expectedPartitionKey $testRecordId | Out-Null
+        
+                $response
+            }
+
+            Mock Get-AuthorizationHeader {
+                param($ResourceGroup, $SubscriptionId, $Database, $verb, $resourceType, $resourceUrl, $now)
+        
+                $resourceUrl | Should -Be "dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/docs/$expectedAuthHeaderRecordId"
+        
+                $global:capturedNow = $now
+        
+                $MOCK_AUTH_HEADER
+            }
+
+            $result = $payload | Update-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION
+
+            $result | Should -BeExactly $response
         }
 
         It "Should handle exceptions gracefully" {    
