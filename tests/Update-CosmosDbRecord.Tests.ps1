@@ -244,6 +244,7 @@ InModuleScope cosmos-db {
             $result.Count | Should -Be $payloads.Count
 
             Assert-MockCalled Invoke-CosmosDbApiRequest -Times $payloads.Count
+            Assert-MockCalled Get-AuthorizationHeader -Times $payloads.Count
         }
         
         It "Url encodes the record id in the API url" {    
@@ -282,6 +283,9 @@ InModuleScope cosmos-db {
             $result = $payload | Update-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION
 
             $result | Should -BeExactly $response
+
+            Assert-MockCalled Invoke-CosmosDbApiRequest -Times 1
+            Assert-MockCalled Get-AuthorizationHeader -Times 1
         }
 
         It "Should handle exceptions gracefully" {    
@@ -316,6 +320,7 @@ InModuleScope cosmos-db {
 
             $result | Should -BeExactly $recordResponse
             Assert-MockCalled Get-ExceptionResponseOrThrow -Times 1
+            Assert-MockCalled Invoke-CosmosDbApiRequest -Times 1
         }
     }
 }
