@@ -123,7 +123,7 @@ Function Get-AuthorizationHeader([string]$ResourceGroup, [string]$SubscriptionId
     Get-EncodedAuthString -signatureHash $signatureHash
 }
 
-Function Get-CommonHeaders([string]$now, [string]$encodedAuthString, [string]$contentType = "application/json", [bool]$isQuery = $false, [string]$PartitionKey = $null) {
+Function Get-CommonHeaders([string]$now, [string]$encodedAuthString, [string]$contentType = "application/json", [bool]$isQuery = $false, [string]$PartitionKey = $null, [string]$Etag = $null) {
     $headers = @{ 
         "x-ms-date"     = $now;
         "x-ms-version"  = $API_VERSION;
@@ -139,6 +139,10 @@ Function Get-CommonHeaders([string]$now, [string]$encodedAuthString, [string]$co
     if ($PartitionKey) {
         $headers["x-ms-documentdb-partitionkey"] = "[`"$PartitionKey`"]"
     }
+	
+	if ($Etag) {
+		$headers["If-Match"] = $Etag
+	}
 
     $headers
 }
@@ -775,6 +779,7 @@ Function Update-CosmosDbRecord {
         [parameter(Mandatory = $false)][string]$SubscriptionId = "", 
         [parameter(Mandatory = $false, ParameterSetName = "ExplicitPartitionKey")][string]$PartitionKey = "", 
         [parameter(Mandatory = $false, ParameterSetName = "ParttionKeyCallback")]$GetPartitionKeyBlock = $null
+		
     )
 
     begin {
@@ -792,7 +797,7 @@ Function Update-CosmosDbRecord {
             
             $requestPartitionKey = if ($PartitionKey) { $PartitionKey } elseif ($GetPartitionKeyBlock) { Invoke-Command -ScriptBlock $GetPartitionKeyBlock -ArgumentList $Object } else { $Object.Id }
 
-            $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -PartitionKey $requestPartitionKey
+            $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -PartitionKey $requestPartitionKey -Etag $Object._etag
 
             Invoke-CosmosDbApiRequest -Verb $PUT_VERB -Url $url -Body $Object -Headers $headers
         }
