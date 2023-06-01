@@ -781,7 +781,7 @@ Function Update-CosmosDbRecord {
         [parameter(Mandatory = $false)][string]$SubscriptionId = "", 
         [parameter(Mandatory = $false, ParameterSetName = "ExplicitPartitionKey")][string]$PartitionKey = "", 
         [parameter(Mandatory = $false, ParameterSetName = "ParttionKeyCallback")]$GetPartitionKeyBlock = $null,
-        [parameter(Mandatory = $false, ParameterSetName = "EnforceOptimisticConcurrency")][bool]$EnforceOptimisticConcurrency = $true
+        [parameter(Mandatory = $false)][bool]$EnforceOptimisticConcurrency = $true
 		
     )
 

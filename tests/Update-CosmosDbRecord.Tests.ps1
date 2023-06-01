@@ -167,16 +167,25 @@ InModuleScope cosmos-db {
                 key2 = 2;
                 "_etag" = $MOCK_ETAG;
             }
-            
+
+            $MOCK_PARTITION_KEY = "MOCK_PARTITION_KEY"
+            $MOCK_GET_PARTITION_KEY = { 
+                param($obj)
+
+                $obj | Should -BeExactly $payload | Out-Null
+
+                $MOCK_PARTITION_KEY
+            }
+
             Mock Invoke-CosmosDbApiRequest {
                 param($verb, $url, $body, $headers) 
                 
-                VerifyInvokeCosmosDbApiRequest $verb $url $body $payload $headers -EnforceOptimisticConcurrency $false | Out-Null
+                VerifyInvokeCosmosDbApiRequest $verb $url $body $payload $headers -ExpectedPartitionKey $MOCK_PARTITION_KEY -EnforceOptimisticConcurrency $false | Out-Null
         
                 $response
             }
 
-            $result = $payload | Update-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -EnforceOptimisticConcurrency $false
+            $result = $payload | Update-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -GetPartitionKeyBlock $MOCK_GET_PARTITION_KEY -EnforceOptimisticConcurrency $false
 
             $result | Should -BeExactly $response
 
