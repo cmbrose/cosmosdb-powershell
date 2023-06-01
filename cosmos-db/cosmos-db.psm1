@@ -742,6 +742,8 @@ Function New-CosmosDbRecord {
     [Optional] The record's partition key. Default is the `id` property of `Object`. Required if using a custom partition strategy.
 .PARAMETER GetPartitionKeyBlock
     [Optional] Callback to get the partition key from the input object. Default is the `id` property of `Object`. Required if using a custom partition strategy.
+.PARAMETER EnforceOptimisticConcurrency
+    [Optional] Boolean specifying whether to enforce optimistic concurrency. Default is $true.
 
 .EXAMPLE
     $> Update-CosmosDbRecord -Object @{ id = 1234; key = value } ...
@@ -778,7 +780,8 @@ Function Update-CosmosDbRecord {
         [parameter(Mandatory = $true)][string]$Collection, 
         [parameter(Mandatory = $false)][string]$SubscriptionId = "", 
         [parameter(Mandatory = $false, ParameterSetName = "ExplicitPartitionKey")][string]$PartitionKey = "", 
-        [parameter(Mandatory = $false, ParameterSetName = "ParttionKeyCallback")]$GetPartitionKeyBlock = $null
+        [parameter(Mandatory = $false, ParameterSetName = "ParttionKeyCallback")]$GetPartitionKeyBlock = $null,
+        [parameter(Mandatory = $false, ParameterSetName = "EnforceOptimisticConcurrency")][bool]$EnforceOptimisticConcurrency = $true
 		
     )
 
@@ -797,7 +800,11 @@ Function Update-CosmosDbRecord {
             
             $requestPartitionKey = if ($PartitionKey) { $PartitionKey } elseif ($GetPartitionKeyBlock) { Invoke-Command -ScriptBlock $GetPartitionKeyBlock -ArgumentList $Object } else { $Object.Id }
 
-            $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -PartitionKey $requestPartitionKey -Etag $Object._etag
+            if ($EnforceOptimisticConcurrency) {
+                $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -PartitionKey $requestPartitionKey -Etag $Object._etag
+            } else {
+                $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -PartitionKey $requestPartitionKey
+            }
 
             Invoke-CosmosDbApiRequest -Verb $PUT_VERB -Url $url -Body $Object -Headers $headers
         }
