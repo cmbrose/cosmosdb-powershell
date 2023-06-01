@@ -16,6 +16,7 @@ InModuleScope cosmos-db {
             $MOCK_CONTAINER = "MOCK_CONTAINER"
             $MOCK_COLLECTION = "MOCK_COLLECTION"
             $MOCK_RECORD_ID = "MOCK_RECORD_ID"
+            $MOCK_ETAG = "MOCK_ETAG"
 
             $MOCK_AUTH_HEADER = "MockAuthHeader"
 
@@ -29,7 +30,7 @@ InModuleScope cosmos-db {
                 $resourceUrl | Should -Be "dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/docs/$expectedId"
             }
 
-            Function VerifyInvokeCosmosDbApiRequest($verb, $url, $actualBody, $expectedBody, $headers, $expectedId=$MOCK_RECORD_ID, $expectedPartitionKey=$null)
+            Function VerifyInvokeCosmosDbApiRequest($verb, $url, $actualBody, $expectedBody, $headers, $expectedId=$MOCK_RECORD_ID, $expectedPartitionKey=$null, $enforceOptimisticConcurrency=$true)
             {
                 $verb | Should -Be "put"
                 $url | Should -Be "https://$MOCK_DB.documents.azure.com/dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/docs/$expectedId"        
@@ -39,8 +40,12 @@ InModuleScope cosmos-db {
                 $global:capturedNow | Should -Not -Be $null
 
                 $expectedPartitionKey = if ($expectedPartitionKey) { $expectedPartitionKey } else { $expectedId }
-                $expectedHeaders = Get-CommonHeaders -now $global:capturedNow -encodedAuthString $MOCK_AUTH_HEADER -PartitionKey $expectedPartitionKey
-            
+                
+                if ($EnforceOptimisticConcurrency) {
+                    $expectedHeaders = $expectedHeaders = Get-CommonHeaders -now $global:capturedNow -encodedAuthString $MOCK_AUTH_HEADER -PartitionKey $expectedPartitionKey -Etag $MOCK_ETAG
+                } else {
+                    $expectedHeaders = Get-CommonHeaders -now $global:capturedNow -encodedAuthString $MOCK_AUTH_HEADER -PartitionKey $expectedPartitionKey
+                }
                 AssertHashtablesEqual $expectedHeaders $headers
             }
 
@@ -65,6 +70,7 @@ InModuleScope cosmos-db {
                 id = $MOCK_RECORD_ID;
                 key1 = "value1";
                 key2 = 2;
+                "_etag" = $MOCK_ETAG;
             }
 
             Mock Invoke-CosmosDbApiRequest {
@@ -92,6 +98,7 @@ InModuleScope cosmos-db {
                 id = $MOCK_RECORD_ID;
                 key1 = "value1";
                 key2 = 2;
+                "_etag" = $MOCK_ETAG;
             }
 
             $MOCK_PARTITION_KEY = "MOCK_PARTITION_KEY"
@@ -121,6 +128,7 @@ InModuleScope cosmos-db {
                 id = $MOCK_RECORD_ID;
                 key1 = "value1";
                 key2 = 2;
+                "_etag" = $MOCK_ETAG;
             }
 
             $MOCK_PARTITION_KEY = "MOCK_PARTITION_KEY"
@@ -149,9 +157,9 @@ InModuleScope cosmos-db {
 
         It "Sends correct request with custom partition key callback for multiple inputs" {
             $payloads = @(
-                @{ id = "1" };
-                @{ id = "2" };
-                @{ id = "3" };
+                @{ id = "1"; "_etag" = $MOCK_ETAG };
+                @{ id = "2"; "_etag" = $MOCK_ETAG };
+                @{ id = "3"; "_etag" = $MOCK_ETAG };
             )
 
             $global:idx = 0
@@ -212,7 +220,8 @@ InModuleScope cosmos-db {
             $expectedAuthHeaderRecordId = $testRecordId # The id in the auth header should not be encoded
 
             $payload = @{
-                id = $testRecordId
+                id = $testRecordId;
+                "_etag" = $MOCK_ETAG;
             }
 
             Mock Invoke-CosmosDbApiRequest {
@@ -247,6 +256,7 @@ InModuleScope cosmos-db {
                 id = $MOCK_RECORD_ID;
                 key1 = "value1";
                 key2 = 2;
+                "_etag" = $MOCK_ETAG;
             }
 
             Mock Invoke-CosmosDbApiRequest {
