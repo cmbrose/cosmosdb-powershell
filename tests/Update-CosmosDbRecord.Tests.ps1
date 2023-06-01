@@ -155,6 +155,34 @@ InModuleScope cosmos-db {
             Assert-MockCalled Invoke-CosmosDbApiRequest -Times 1
         }
 
+        It "Optimistic concurrency can be disabled" {
+            $response = @{
+                StatusCode = 200;
+                Content = "{}"
+            }
+
+            $payload = @{
+                id = $MOCK_RECORD_ID;
+                key1 = "value1";
+                key2 = 2;
+                "_etag" = $MOCK_ETAG;
+            }
+            
+            Mock Invoke-CosmosDbApiRequest {
+                param($verb, $url, $body, $headers) 
+                
+                VerifyInvokeCosmosDbApiRequest $verb $url $body $payload $headers -EnforceOptimisticConcurrency $false | Out-Null
+        
+                $response
+            }
+
+            $result = $payload | Update-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -EnforceOptimisticConcurrency $false
+
+            $result | Should -BeExactly $response
+
+            Assert-MockCalled Invoke-CosmosDbApiRequest -Times 1
+        }
+
         It "Sends correct request with custom partition key callback for multiple inputs" {
             $payloads = @(
                 @{ id = "1"; "_etag" = $MOCK_ETAG };
