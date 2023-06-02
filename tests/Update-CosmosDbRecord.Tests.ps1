@@ -42,7 +42,7 @@ InModuleScope cosmos-db {
                 $expectedPartitionKey = if ($expectedPartitionKey) { $expectedPartitionKey } else { $expectedId }
                 
                 if ($EnforceOptimisticConcurrency) {
-                    $expectedHeaders = $expectedHeaders = Get-CommonHeaders -now $global:capturedNow -encodedAuthString $MOCK_AUTH_HEADER -PartitionKey $expectedPartitionKey -Etag $MOCK_ETAG
+                    $expectedHeaders = Get-CommonHeaders -now $global:capturedNow -encodedAuthString $MOCK_AUTH_HEADER -PartitionKey $expectedPartitionKey -Etag $MOCK_ETAG
                 } else {
                     $expectedHeaders = Get-CommonHeaders -now $global:capturedNow -encodedAuthString $MOCK_AUTH_HEADER -PartitionKey $expectedPartitionKey
                 }
