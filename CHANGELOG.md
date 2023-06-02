@@ -1,6 +1,9 @@
 # Release Notes
 All notable changes and release history of the "cosmos-db" module will be documented in this file.
 
+## 1.15
+* Adds support for optimistic concurrency (enabled by default) to `Update-CosmosDbRecord`
+
 ## 1.14
 * Fixes a bug where record ids were not encoded in the API calls which broke Get-, Remove-, and Update- for records with ids that contained characters such as `'/'`
 

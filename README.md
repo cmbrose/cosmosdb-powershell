@@ -202,6 +202,7 @@ $records | Update-CosmosDbRecord ...
 | SubscriptionId | The Azure Subscription Id | No - defaults to whatever `az` defaults to |
 | PartitionKey | The partition key of the resource | No - defaults to `Id`<br/>Must be set if the collection uses a different parition scheme |
 | GetPartitionKeyBlock | Callback to get the `PartitionKey` from `Object` - useful in pipelines | No - used only if `PartitionKey` is not set |
+| EnforceOptimisticConcurrency | Enables or disables optimistic concurrency checks | No - default is enabled |
 
 ### Remove-CosmosDbRecord
 
