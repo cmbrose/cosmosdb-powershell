@@ -39,33 +39,6 @@ InModuleScope cosmos-db {
             $result | Should -Be $null
         }
 
-        It "Throws not found for 404 - DB not found" {
-            $response = @{
-                StatusCode = 404;
-                Content    = (@{
-                        Message = "{`"Errors`":[`"Owner resource does not exist`"]}"
-                    } | ConvertTo-Json)
-            }
-
-            { $response | Get-CosmosDbRecordContent } | Should -Throw "Database does not exist"
-        }
-        
-        It "Throws not found for 404" {
-            $response = @{
-                StatusCode = 404;
-            }
-
-            { $response | Get-CosmosDbRecordContent } | Should -Throw "Record not found"
-        }
-
-        It "Throws throttle for 429" {
-            $response = @{
-                StatusCode = 429;
-            }
-
-            { $response | Get-CosmosDbRecordContent } | Should -Throw "Request rate limited"
-        }
-
         It "Throws unauthorized for 401" {
             Use-CosmosDbReadonlyKeys -Disable
 
@@ -73,7 +46,7 @@ InModuleScope cosmos-db {
                 StatusCode = 401;
             }
 
-            { $response | Get-CosmosDbRecordContent } | Should -Throw "Unauthorized"
+            { $response | Get-CosmosDbRecordContent } | Should -Throw "(401) Unauthorized"
         }
 
         It "Throws unauthorized for 401 with a message about readonly keys" {
@@ -83,7 +56,44 @@ InModuleScope cosmos-db {
                 StatusCode = 401;
             }
 
-            { $response | Get-CosmosDbRecordContent } | Should -Throw "Unauthorized (used a readonly key)"
+            { $response | Get-CosmosDbRecordContent } | Should -Throw "(401) Unauthorized (used a readonly key)"
+        }
+
+        It "Throws not found for 404 - DB not found" {
+            $response = @{
+                StatusCode = 404;
+                Content    = (@{
+                        Message = "{`"Errors`":[`"Owner resource does not exist`"]}"
+                    } | ConvertTo-Json)
+            }
+
+            { $response | Get-CosmosDbRecordContent } | Should -Throw "(404) Database does not exist"
+        }
+        
+        It "Throws not found for 404" {
+            $response = @{
+                StatusCode = 404;
+            }
+
+            { $response | Get-CosmosDbRecordContent } | Should -Throw "(404) Record not found"
+        }
+
+        It "Throws conflict for 412" {
+            Use-CosmosDbReadonlyKeys
+
+            $response = [pscustomobject] @{
+                StatusCode = 412;
+            }
+
+            { $response | Get-CosmosDbRecordContent } | Should -Throw "(412) Conflict"
+        }
+
+        It "Throws throttle for 429" {
+            $response = @{
+                StatusCode = 429;
+            }
+
+            { $response | Get-CosmosDbRecordContent } | Should -Throw "(429) Request rate limited"
         }
             
         It "Throws useful error for unknown errors" {
