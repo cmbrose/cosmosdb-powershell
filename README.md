@@ -228,6 +228,26 @@ Remove-CosmosDbRecord ...
 | PartitionKey | The partition key of the resource | No - defaults to `Id`<br/>Must be set if the collection uses a different parition scheme |
 | GetPartitionKeyBlock | Callback to get the `PartitionKey` from `Object` - useful in pipelines | No - used only if `PartitionKey` is not set |
 
+### Use-CosmosDbReadonlyKeys
+
+Enables or disables using readonly DB keys in commands. By default this is disabled (i.e. writable keys are used).
+
+#### Examples
+
+```powershell
+# Enable using readonly keys
+Use-CosmosDbReadonlyKeys
+
+# Disable using readonly keys (use writable keys)
+Use-CosmosDbReadonlyKeys -Disable
+```
+
+#### Parameters
+
+| Name | Usage | Required |
+| - | - | - |
+| Disable | Disables readonly keys if set (enables writable keys) | No - default is `$false` (which will enable readonly keys) |
+
 ### Use-CosmosDbInternalFlag
 
 Enables or disables internal flags in the module, normally should only be used for debugging or dogfooding

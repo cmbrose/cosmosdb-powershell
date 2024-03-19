@@ -30,7 +30,7 @@ Function Get-DocumentsUrl([string]$Container, [string]$Collection, [string]$Reco
     $encodedRecordId = [uri]::EscapeDataString($RecordId)
 
     return @{
-        ApiUrl = "$collectionsUrl/$DOCS_TYPE/$encodedRecordId";
+        ApiUrl      = "$collectionsUrl/$DOCS_TYPE/$encodedRecordId";
         ResourceUrl = "$collectionsUrl/$DOCS_TYPE/$RecordId";
     }
 }
@@ -61,20 +61,36 @@ Function Set-CacheValue([string]$key, $value, [hashtable]$cache, [int]$expiratio
 }
 
 Function Get-Base64Masterkey([string]$ResourceGroup, [string]$Database, [string]$SubscriptionId) {
-    $cacheKey = "$SubscriptionId/$ResourceGroup/$Database"
+    $readonly = $env:COSMOS_DB_FLAG_ENABLE_READONLY_KEYS -eq 1
+
+    $cacheKey = "$SubscriptionId/$ResourceGroup/$Database/$readonly"
     $cacheResult = Get-CacheValue -Key $cacheKey -Cache $MASTER_KEY_CACHE
     if ($cacheResult) {
         return $cacheResult
     }
 
-    if ($SubscriptionId) {
-        $masterKey = az cosmosdb keys list --name $Database --query primaryMasterKey --output tsv --resource-group $ResourceGroup --subscription $SubscriptionId
-    }
-    else {
-        $masterKey = az cosmosdb keys list --name $Database --query primaryMasterKey --output tsv --resource-group $ResourceGroup    
-    }
+    $masterKey = Get-Base64MasterkeyWithoutCaching -ResourceGroup $ResourceGroup -Database $Database -SubscriptionId $SubscriptionId -Readonly $readonly
 
     Set-CacheValue -Key $cacheKey -Value $masterKey -Cache $MASTER_KEY_CACHE -ExpirationHours 6
+
+    $masterKey
+}
+
+# This is just to support testing caching with Get-Base64Masterkey and isn't meant to be used directly
+Function Get-Base64MasterkeyWithoutCaching([string]$ResourceGroup, [string]$Database, [string]$SubscriptionId, [bool]$Readonly) {
+    $query = if ($readonly) {
+        "primaryReadonlyMasterKey"
+    }
+    else {
+        "primaryMasterKey"
+    }
+
+    if ($SubscriptionId) {
+        $masterKey = az cosmosdb keys list --name $Database --query $query --output tsv --resource-group $ResourceGroup --subscription $SubscriptionId
+    }
+    else {
+        $masterKey = az cosmosdb keys list --name $Database --query $query --output tsv --resource-group $ResourceGroup
+    }
 
     $masterKey
 }
@@ -140,9 +156,9 @@ Function Get-CommonHeaders([string]$now, [string]$encodedAuthString, [string]$co
         $headers["x-ms-documentdb-partitionkey"] = "[`"$PartitionKey`"]"
     }
 	
-	if ($Etag) {
-		$headers["If-Match"] = $Etag
-	}
+    if ($Etag) {
+        $headers["If-Match"] = $Etag
+    }
 
     $headers
 }
@@ -172,7 +188,7 @@ Function Get-ExceptionResponseOrThrow($err) {
 
     if ($err.Exception.Response) {
         $msg = @{
-            StatusCode = $err.Exception.Response.StatusCode;
+            StatusCode  = $err.Exception.Response.StatusCode;
             RawResponse = $err.Exception.Response;
         }
 
@@ -180,7 +196,8 @@ Function Get-ExceptionResponseOrThrow($err) {
             # In PS Core, the body is eaten and put into this message
             # See: https://stackoverflow.com/questions/18771424/how-to-get-powershell-invoke-restmethod-to-return-body-of-http-500-code-response
             $msg.Content = $err.ErrorDetails.Message
-        } else {
+        }
+        else {
             # In Desktop we can re-read the content stream
             $result = $err.Exception.Response.GetResponseStream()
             $reader = New-Object System.IO.StreamReader($result)
@@ -191,7 +208,8 @@ Function Get-ExceptionResponseOrThrow($err) {
         }
 
         return [PSCustomObject]$msg
-    } else {
+    }
+    else {
         throw $err.Exception
     }
 }
@@ -802,7 +820,8 @@ Function Update-CosmosDbRecord {
 
             if ($EnforceOptimisticConcurrency) {
                 $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -PartitionKey $requestPartitionKey -Etag $Object._etag
-            } else {
+            }
+            else {
                 $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -PartitionKey $requestPartitionKey
             }
 
@@ -911,11 +930,12 @@ Function Get-CosmosDbRecordContent([parameter(ValueFromPipeline)]$RecordResponse
     process {
         $code = [int]$RecordResponse.StatusCode
         $content = 
-            if ($RecordResponse.Content) {
-                $RecordResponse.Content | ConvertFrom-Json
-            } else {
-                $null
-            }
+        if ($RecordResponse.Content) {
+            $RecordResponse.Content | ConvertFrom-Json
+        }
+        else {
+            $null
+        }
 
         if ($code -lt 300) {
             if ($RecordResponse.Content) {
@@ -924,6 +944,12 @@ Function Get-CosmosDbRecordContent([parameter(ValueFromPipeline)]$RecordResponse
             else {
                 $null
             }
+        }
+        elseif ($code -eq 401) {
+            if ($env:COSMOS_DB_FLAG_ENABLE_READONLY_KEYS -eq 1) {
+                throw "Unauthorized (used a readonly key)"
+            }
+            throw "Unauthorized"
         }
         elseif ($code -eq 404) {
             if ($content.Message -like "*Owner resource does not exist*") {
@@ -935,6 +961,7 @@ Function Get-CosmosDbRecordContent([parameter(ValueFromPipeline)]$RecordResponse
         elseif ($code -eq 429) {
             throw "Request rate limited"
         }
+        
         else {
             $message = $content.Message
             throw "Request failed with status code $code with message`n`n$message"
@@ -961,6 +988,14 @@ Function Use-CosmosDbInternalFlag
     }
 }
 
+Function Use-CosmosDbReadonlyKeys
+(
+    [switch]$Disable
+) {
+    $env:COSMOS_DB_FLAG_ENABLE_READONLY_KEYS = if ($Disable) { 0 } else { 1 }
+}
+
+
 Export-ModuleMember -Function "Get-CosmosDbRecord"
 Export-ModuleMember -Function "Get-AllCosmosDbRecords"
 
@@ -973,5 +1008,7 @@ Export-ModuleMember -Function "Update-CosmosDbRecord"
 Export-ModuleMember -Function "Remove-CosmosDbRecord"
 
 Export-ModuleMember -Function "Get-CosmosDbRecordContent"
+
+Export-ModuleMember -Function "Use-CosmosDbReadonlyKeys"
 
 Export-ModuleMember -Function "Use-CosmosDbInternalFlag"

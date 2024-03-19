@@ -11,8 +11,8 @@ InModuleScope cosmos-db {
 
         It "Returns the Content of a successful response" {
             $content = @{ 
-                Key1 = "Value1";
-                Key2 = 2;
+                Key1   = "Value1";
+                Key2   = 2;
                 Nested = @{
                     NestedKey1 = "NestedValue1";
                     NestedKey2 = 2;
@@ -21,7 +21,7 @@ InModuleScope cosmos-db {
 
             $response = @{
                 StatusCode = 200;
-                Content = ($content | ConvertTo-Json -Depth 100)
+                Content    = ($content | ConvertTo-Json -Depth 100)
             }
 
             $result = $response | Get-CosmosDbRecordContent
@@ -42,9 +42,9 @@ InModuleScope cosmos-db {
         It "Throws not found for 404 - DB not found" {
             $response = @{
                 StatusCode = 404;
-                Content = (@{
-                    Message = "{`"Errors`":[`"Owner resource does not exist`"]}"
-                } | ConvertTo-Json)
+                Content    = (@{
+                        Message = "{`"Errors`":[`"Owner resource does not exist`"]}"
+                    } | ConvertTo-Json)
             }
 
             { $response | Get-CosmosDbRecordContent } | Should -Throw "Database does not exist"
@@ -65,16 +65,36 @@ InModuleScope cosmos-db {
 
             { $response | Get-CosmosDbRecordContent } | Should -Throw "Request rate limited"
         }
+
+        It "Throws unauthorized for 401" {
+            Use-CosmosDbReadonlyKeys -Disable
+
+            $response = [pscustomobject] @{
+                StatusCode = 401;
+            }
+
+            { $response | Get-CosmosDbRecordContent } | Should -Throw "Unauthorized"
+        }
+
+        It "Throws unauthorized for 401 with a message about readonly keys" {
+            Use-CosmosDbReadonlyKeys
+
+            $response = [pscustomobject] @{
+                StatusCode = 401;
+            }
+
+            { $response | Get-CosmosDbRecordContent } | Should -Throw "Unauthorized (used a readonly key)"
+        }
             
         It "Throws useful error for unknown errors" {
             $errorMessage = "Mock error message"
 
             $response = [pscustomobject] @{
-                StatusCode = 401;
-                Content = ( @{ Message = $errorMessage; } | ConvertTo-Json);
+                StatusCode = 1234;
+                Content    = ( @{ Message = $errorMessage; } | ConvertTo-Json);
             }
 
-            { $response | Get-CosmosDbRecordContent } | Should -Throw "Request failed with status code 401 with message`n`n$errorMessage"
+            { $response | Get-CosmosDbRecordContent } | Should -Throw "Request failed with status code 1234 with message`n`n$errorMessage"
         }
     }
 }

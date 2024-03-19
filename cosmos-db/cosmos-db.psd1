@@ -11,7 +11,7 @@
     # RootModule = ''
 
     # Version number of this module.
-    ModuleVersion     = '1.15'
+    ModuleVersion     = '1.16'
 
     # Supported PSEditions
     # CompatiblePSEditions = @()
@@ -71,7 +71,7 @@
     FunctionsToExport = 'Get-CosmosDbRecord', 'Get-AllCosmosDbRecords', 
     'Search-CosmosDbRecords', 'New-CosmosDbRecord', 
     'Update-CosmosDbRecord', 'Remove-CosmosDbRecord', 
-    'Get-CosmosDbRecordContent', 'Use-CosmosDbInternalFlag'
+    'Get-CosmosDbRecordContent', 'Use-CosmosDbReadonlyKeys', 'Use-CosmosDbInternalFlag'
 
     # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
     CmdletsToExport   = '*'
