@@ -267,7 +267,10 @@ Function Invoke-CosmosDbApiRequestWithContinuation([string]$verb, [string]$url, 
     while ($continuationToken) {
         $headers["x-ms-continuation"] = $continuationToken
 
-        if ([System.DateTime]::Parse($authHeaders.now) + $AUTHORIZATION_HEADER_REFRESH_THRESHOLD -lt [System.DateTime]::UtcNow) {
+        $authHeaderReuseDisabled = $env:COSMOS_DB_FLAG_ENABLE_AUTH_HEADER_REUSE -eq 0
+        $authHeaderExpired = [System.DateTime]::Parse($authHeaders.now) + $AUTHORIZATION_HEADER_REFRESH_THRESHOLD -lt [System.DateTime]::UtcNow
+        
+        if ($authHeaderReuseDisabled -or $authHeaderExpired) {
             $authHeaders = Invoke-Command -ScriptBlock $refreshAuthHeaders
             Set-AuthHeaders -headers $headers -now $authHeaders.now -encodedAuthString $authHeaders.encodedAuthString
         }
@@ -1001,7 +1004,8 @@ Function Use-CosmosDbInternalFlag
 (
     $enableFiddlerDebugging = $null,
     $enableCaching = $null,
-    $enablePartitionKeyRangeSearches = $null
+    $enablePartitionKeyRangeSearches = $null,
+    $enableAuthHeaderReuse = $null
 ) {
     if ($null -ne $enableFiddlerDebugging) {
         $env:AZURE_CLI_DISABLE_CONNECTION_VERIFICATION = if ($enableFiddlerDebugging) { 1 } else { 0 }
@@ -1013,6 +1017,10 @@ Function Use-CosmosDbInternalFlag
 
     if ($null -ne $enablePartitionKeyRangeSearches) {
         $env:COSMOS_DB_FLAG_ENABLE_PARTITION_KEY_RANGE_SEARCHES = if ($enablePartitionKeyRangeSearches) { 1 } else { 0 }
+    }
+
+    if ($null -ne $enableAuthHeaderReuse) {
+        $env:COSMOS_DB_FLAG_ENABLE_AUTH_HEADER_REUSE = if ($enableAuthHeaderReuse) { 1 } else { 0 }
     }
 }
 
