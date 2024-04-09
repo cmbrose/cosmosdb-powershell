@@ -15,22 +15,41 @@ InModuleScope cosmos-db {
     }
 
     Describe "Invoke-CosmosDbApiRequestWithContinuation" {
+        BeforeEach {
+            $ORIG_AUTHORIZATION_HEADER_REFRESH_THRESHOLD = $AUTHORIZATION_HEADER_REFRESH_THRESHOLD
+        }
+    
+        AfterEach {
+            $AUTHORIZATION_HEADER_REFRESH_THRESHOLD = $ORIG_AUTHORIZATION_HEADER_REFRESH_THRESHOLD
+        }
+
         It "Handles responses without continuation header" {  
             $PSVersionTable.PSEdition = "Desktop"
 
             $MOCK_VERB = "MOCK_VERB"
             $MOCK_URL = "MOCK_URL"
+            $MOCK_NOW = Get-Time
+            $MOCK_AUTH_STRING = "MOCK_AUTH_STRING"
             $MOCK_BODY = @{
                 Mock = "Mock"
             }
             $MOCK_HEADERS = @{
-                Mock = "Mock";
+                Mock          = "Mock";
+                "x-ms-date"   = $MOCK_NOW;
+                Authorization = $MOCK_AUTH_STRING;
             }
 
             $response = @{
                 StatusCode = 200;
                 Content    = "{}";
                 Headers    = @{};
+            }
+
+            $refreshAuthHeaders = {
+                return @{
+                    now               = $MOCK_NOW;
+                    encodedAuthString = $MOCK_AUTH_STRING;
+                }
             }
 
             Mock Invoke-CosmosDbApiRequest {
@@ -46,7 +65,7 @@ InModuleScope cosmos-db {
                 $response
             }
 
-            $result = Invoke-CosmosDbApiRequestWithContinuation -Verb $MOCK_VERB -Url $MOCK_URL -Body $MOCK_BODY -Headers $MOCK_HEADERS
+            $result = Invoke-CosmosDbApiRequestWithContinuation -Verb $MOCK_VERB -Url $MOCK_URL -Body $MOCK_BODY -Headers $MOCK_HEADERS -RefreshAuthHeaders $refreshAuthHeaders
 
             $result | Should -BeExactly $response
             @($result).Count | Should -Be 1
@@ -59,17 +78,28 @@ InModuleScope cosmos-db {
 
             $MOCK_VERB = "MOCK_VERB"
             $MOCK_URL = "MOCK_URL"
+            $MOCK_NOW = Get-Time
+            $MOCK_AUTH_STRING = "MOCK_AUTH_STRING"
             $MOCK_BODY = @{
                 Mock = "Mock"
             }
             $MOCK_HEADERS = @{
-                Mock = "Mock";
+                Mock          = "Mock";
+                "x-ms-date"   = $MOCK_NOW;
+                Authorization = $MOCK_AUTH_STRING;
             }
 
             $response = @{
                 StatusCode = 200;
                 Content    = "{}";
                 Headers    = @{};
+            }
+
+            $refreshAuthHeaders = {
+                return @{
+                    now               = $MOCK_NOW;
+                    encodedAuthString = $MOCK_AUTH_STRING;
+                }
             }
 
             Mock Invoke-CosmosDbApiRequest {
@@ -85,7 +115,7 @@ InModuleScope cosmos-db {
                 $response
             }
 
-            $result = Invoke-CosmosDbApiRequestWithContinuation -Verb $MOCK_VERB -Url $MOCK_URL -Body $MOCK_BODY -Headers $MOCK_HEADERS
+            $result = Invoke-CosmosDbApiRequestWithContinuation -Verb $MOCK_VERB -Url $MOCK_URL -Body $MOCK_BODY -Headers $MOCK_HEADERS -RefreshAuthHeaders $refreshAuthHeaders
 
             $result | Should -BeExactly $response
             @($result).Count | Should -Be 1
@@ -100,11 +130,22 @@ InModuleScope cosmos-db {
 
             $MOCK_VERB = "MOCK_VERB"
             $MOCK_URL = "MOCK_URL"
+            $MOCK_NOW = Get-Time
+            $MOCK_AUTH_STRING = "MOCK_AUTH_STRING"
             $MOCK_BODY = @{
                 Mock = "Mock"
             }
             $MOCK_HEADERS = @{
-                Mock = "Mock";
+                Mock          = "Mock";
+                "x-ms-date"   = $MOCK_NOW;
+                Authorization = $MOCK_AUTH_STRING;
+            }
+
+            $refreshAuthHeaders = {
+                return @{
+                    now               = $MOCK_NOW;
+                    encodedAuthString = $MOCK_AUTH_STRING;
+                }
             }
 
             $global:idx = 0
@@ -134,7 +175,7 @@ InModuleScope cosmos-db {
                 $response
             }
 
-            $result = Invoke-CosmosDbApiRequestWithContinuation -Verb $MOCK_VERB -Url $MOCK_URL -Body $MOCK_BODY -Headers $MOCK_HEADERS
+            $result = Invoke-CosmosDbApiRequestWithContinuation -Verb $MOCK_VERB -Url $MOCK_URL -Body $MOCK_BODY -Headers $MOCK_HEADERS -RefreshAuthHeaders $refreshAuthHeaders
 
             $result | Should -BeExactly $global:expectedResponses
             @($result).Count | Should -Be $continuationTokens.Count
@@ -149,11 +190,22 @@ InModuleScope cosmos-db {
 
             $MOCK_VERB = "MOCK_VERB"
             $MOCK_URL = "MOCK_URL"
+            $MOCK_NOW = Get-Time
+            $MOCK_AUTH_STRING = "MOCK_AUTH_STRING"
             $MOCK_BODY = @{
                 Mock = "Mock"
             }
             $MOCK_HEADERS = @{
-                Mock = "Mock";
+                Mock          = "Mock";
+                "x-ms-date"   = $MOCK_NOW;
+                Authorization = $MOCK_AUTH_STRING;
+            }
+
+            $refreshAuthHeaders = {
+                return @{
+                    now               = $MOCK_NOW;
+                    encodedAuthString = $MOCK_AUTH_STRING;
+                }
             }
 
             $global:idx = 0
@@ -185,7 +237,7 @@ InModuleScope cosmos-db {
                 $response
             }
 
-            $result = Invoke-CosmosDbApiRequestWithContinuation -Verb $MOCK_VERB -Url $MOCK_URL -Body $MOCK_BODY -Headers $MOCK_HEADERS
+            $result = Invoke-CosmosDbApiRequestWithContinuation -Verb $MOCK_VERB -Url $MOCK_URL -Body $MOCK_BODY -Headers $MOCK_HEADERS -RefreshAuthHeaders $refreshAuthHeaders
 
             $result | Should -BeExactly $global:expectedResponses
             @($result).Count | Should -Be $continuationTokens.Count
@@ -200,12 +252,22 @@ InModuleScope cosmos-db {
 
             $MOCK_VERB = "MOCK_VERB"
             $MOCK_URL = "MOCK_URL"
+            $MOCK_NOW = Get-Time
+            $MOCK_AUTH_STRING = "MOCK_AUTH_STRING"
             $MOCK_BODY = @{
                 Mock = "Mock"
             }
             $MOCK_HEADERS = @{
-                Mock                = "Mock"
-                "x-ms-continuation" = "BAD_TOKEN"
+                Mock          = "Mock";
+                "x-ms-date"   = $MOCK_NOW;
+                Authorization = $MOCK_AUTH_STRING;
+            }
+
+            $refreshAuthHeaders = {
+                return @{
+                    now               = $MOCK_NOW;
+                    encodedAuthString = $MOCK_AUTH_STRING;
+                }
             }
 
             $global:idx = 0
@@ -237,12 +299,161 @@ InModuleScope cosmos-db {
                 $response
             }
 
-            $result = Invoke-CosmosDbApiRequestWithContinuation -Verb $MOCK_VERB -Url $MOCK_URL -Body $MOCK_BODY -Headers $MOCK_HEADERS
+            $result = Invoke-CosmosDbApiRequestWithContinuation -Verb $MOCK_VERB -Url $MOCK_URL -Body $MOCK_BODY -Headers $MOCK_HEADERS -RefreshAuthHeaders $refreshAuthHeaders
 
             $result | Should -BeExactly $global:expectedResponses
             @($result).Count | Should -Be $continuationTokens.Count
 
             Assert-MockCalled Invoke-CosmosDbApiRequest -Times $continuationTokens.Count
+        }
+
+        It "Refreshes auth headers after passing age threshold" {
+            # Force each call to refresh
+            $AUTHORIZATION_HEADER_REFRESH_THRESHOLD = [System.TimeSpan]::Zero
+
+            $continuationTokens = @($null, "100", "200", "300")
+
+            $PSVersionTable.PSEdition = "Core"
+
+            $MOCK_VERB = "MOCK_VERB"
+            $MOCK_URL = "MOCK_URL"
+            $MOCK_AUTH_STRING = "MOCK_AUTH_STRING"
+            $MOCK_BODY = @{
+                Mock = "Mock"
+            }
+            $MOCK_HEADERS = @{
+                Mock = "Mock";
+            }
+
+            $global:authRefreshCount = 0
+            $global:expectedNow = $null
+
+            $refreshAuthHeaders = {
+                $global:authRefreshCount += 1
+                $global:expectedNow = Get-Time
+
+                return @{
+                    now               = $global:expectedNow;
+                    encodedAuthString = $MOCK_AUTH_STRING + "_" + $global:authRefreshCount;
+                }
+            }
+
+            $global:idx = 0
+            $global:expectedResponses = @()
+
+            Mock Invoke-CosmosDbApiRequest {
+                param($verb, $url, $body, $headers)             
+
+                $verb | Should -Be $MOCK_VERB | Out-Null
+                $url | Should -Be $MOCK_URL | Out-Null
+                $body | Should -Be $MOCK_BODY | Out-Null
+
+                $headers["x-ms-continuation"] | Should -Be $continuationTokens[$global:idx] | Out-Null
+                $global:idx = $global:idx + 1
+
+                $headers.Remove("x-ms-continuation")
+                
+                $headers["Authorization"] | Should -Be ($MOCK_AUTH_STRING + "_" + $global:authRefreshCount) | Out-Null
+                $headers.Remove("Authorization")
+
+                $headers["x-ms-date"] | Should -Be $global:expectedNow | Out-Null
+                $headers.Remove("x-ms-date")
+
+                AssertHashtablesEqual $MOCK_HEADERS $headers
+        
+                $response = @{
+                    StatusCode = 200;
+                    Content    = "$global:idx";
+                    Headers    = @{
+                        # The empty here is to trick powershell into no automatically converting the single item array into just a value
+                        "x-ms-continuation" = @($continuationTokens[$global:idx], "")
+                    };
+                }
+                
+                $global:expectedResponses += $response
+                $response
+            }
+
+            $result = Invoke-CosmosDbApiRequestWithContinuation -Verb $MOCK_VERB -Url $MOCK_URL -Body $MOCK_BODY -Headers $MOCK_HEADERS -RefreshAuthHeaders $refreshAuthHeaders
+
+            $result | Should -BeExactly $global:expectedResponses
+            @($result).Count | Should -Be $continuationTokens.Count
+
+            Assert-MockCalled Invoke-CosmosDbApiRequest -Times $continuationTokens.Count
+
+            $global:authRefreshCount | Should -Be $continuationTokens.Count
+        }
+
+        It "Does not refresh auth headers before age threshold" {
+            # Force each call to refresh
+            $AUTHORIZATION_HEADER_REFRESH_THRESHOLD = [System.TimeSpan]::FromHours(1)
+
+            $continuationTokens = @($null, "100", "200", "300")
+
+            $PSVersionTable.PSEdition = "Core"
+
+            $MOCK_VERB = "MOCK_VERB"
+            $MOCK_URL = "MOCK_URL"
+            $MOCK_AUTH_STRING = "MOCK_AUTH_STRING"
+            $MOCK_BODY = @{
+                Mock = "Mock"
+            }
+            $MOCK_HEADERS = @{
+                Mock = "Mock";
+            }
+
+            $global:authRefreshCount = 0
+            $global:expectedNow = $null
+
+            $refreshAuthHeaders = {
+                $global:authRefreshCount += 1
+                $global:expectedNow = Get-Time
+
+                return @{
+                    now               = $global:expectedNow;
+                    encodedAuthString = $MOCK_AUTH_STRING + "_" + $global:authRefreshCount;
+                }
+            }
+
+            $global:idx = 0
+            $global:expectedResponses = @()
+
+            Mock Invoke-CosmosDbApiRequest {
+                param($verb, $url, $body, $headers)             
+
+                $verb | Should -Be $MOCK_VERB | Out-Null
+                $url | Should -Be $MOCK_URL | Out-Null
+                $body | Should -Be $MOCK_BODY | Out-Null
+
+                $headers["x-ms-continuation"] | Should -Be $continuationTokens[$global:idx] | Out-Null
+                $global:idx = $global:idx + 1
+
+                $headers.Remove("x-ms-continuation")
+                
+                $headers["Authorization"] | Should -Be ($MOCK_AUTH_STRING + "_" + $global:authRefreshCount) | Out-Null
+                $headers["x-ms-date"] | Should -Be $global:expectedNow | Out-Null
+        
+                $response = @{
+                    StatusCode = 200;
+                    Content    = "$global:idx";
+                    Headers    = @{
+                        # The empty here is to trick powershell into no automatically converting the single item array into just a value
+                        "x-ms-continuation" = @($continuationTokens[$global:idx], "")
+                    };
+                }
+                
+                $global:expectedResponses += $response
+                $response
+            }
+
+            $result = Invoke-CosmosDbApiRequestWithContinuation -Verb $MOCK_VERB -Url $MOCK_URL -Body $MOCK_BODY -Headers $MOCK_HEADERS -RefreshAuthHeaders $refreshAuthHeaders
+
+            $result | Should -BeExactly $global:expectedResponses
+            @($result).Count | Should -Be $continuationTokens.Count
+
+            Assert-MockCalled Invoke-CosmosDbApiRequest -Times $continuationTokens.Count
+
+            $global:authRefreshCount | Should -Be 1
         }
     }
 }

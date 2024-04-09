@@ -10,6 +10,10 @@ $DELETE_VERB = "delete"
 
 $API_VERSION = "2018-12-31"
 
+# Authorization headers are valid for 15 minutes
+# https://learn.microsoft.com/en-us/rest/api/storageservices/authorize-with-shared-key#specifying-the-date-header
+$AUTHORIZATION_HEADER_REFRESH_THRESHOLD = [System.TimeSpan]::FromMinutes(10);
+
 $MASTER_KEY_CACHE = @{}
 $SIGNATURE_HASH_CACHE = @{}
 $PARTITION_KEY_RANGE_CACHE = @{}
@@ -141,12 +145,12 @@ Function Get-AuthorizationHeader([string]$ResourceGroup, [string]$SubscriptionId
 
 Function Get-CommonHeaders([string]$now, [string]$encodedAuthString, [string]$contentType = "application/json", [bool]$isQuery = $false, [string]$PartitionKey = $null, [string]$Etag = $null) {
     $headers = @{ 
-        "x-ms-date"     = $now;
         "x-ms-version"  = $API_VERSION;
-        "Authorization" = $encodedAuthString;
         "Cache-Control" = "No-Cache";
         "Content-Type"  = $contentType;
     }
+
+    Set-AuthHeaders -headers $headers -now $now -encodedAuthString $encodedAuthString
 
     if ($isQuery) {
         $headers["x-ms-documentdb-isquery"] = "true"
@@ -161,6 +165,16 @@ Function Get-CommonHeaders([string]$now, [string]$encodedAuthString, [string]$co
     }
 
     $headers
+}
+
+Function Set-AuthHeaders($headers, [string]$now, [string]$encodedAuthString) {
+    if ($now) {
+        $headers["x-ms-date"] = $now
+    }
+
+    if ($encodedAuthString) {
+        $headers["Authorization"] = $encodedAuthString
+    }
 }
 
 Function Get-QueryParametersAsNameValuePairs($obj) {
@@ -239,9 +253,12 @@ Function Get-ContinuationToken($response) {
     }
 }
 
-Function Invoke-CosmosDbApiRequestWithContinuation([string]$verb, [string]$url, $headers, $body = $null) {
+Function Invoke-CosmosDbApiRequestWithContinuation([string]$verb, [string]$url, $headers, [ScriptBlock]$refreshAuthHeaders, $body = $null) {
     # Remove in case the headers are reused between multiple calls to this function
     $headers.Remove("x-ms-continuation");
+
+    $authHeaders = Invoke-Command -ScriptBlock $refreshAuthHeaders
+    Set-AuthHeaders -headers $headers -now $authHeaders.now -encodedAuthString $authHeaders.encodedAuthString
 
     $response = Invoke-CosmosDbApiRequest -Verb $verb -Url $url -Body $body -Headers $headers
     $response
@@ -249,6 +266,11 @@ Function Invoke-CosmosDbApiRequestWithContinuation([string]$verb, [string]$url, 
     $continuationToken = Get-ContinuationToken $response
     while ($continuationToken) {
         $headers["x-ms-continuation"] = $continuationToken
+
+        if ([System.DateTime]::Parse($authHeaders.now) + $AUTHORIZATION_HEADER_REFRESH_THRESHOLD -lt [System.DateTime]::UtcNow) {
+            $authHeaders = Invoke-Command -ScriptBlock $refreshAuthHeaders
+            Set-AuthHeaders -headers $headers -now $authHeaders.now -encodedAuthString $authHeaders.encodedAuthString
+        }
 
         $response = Invoke-CosmosDbApiRequest -Verb $verb -Url $url -Body $body -Headers $headers
         $response
@@ -278,14 +300,17 @@ Function Get-PartitionKeyRangesOrError
             return $cacheResult
         }
 
-        $now = Get-Time
+        $refreshAuthHeaders = {
+            $now = Get-Time
+            $encodedAuthString = Get-AuthorizationHeader -ResourceGroup $ResourceGroup -SubscriptionId $SubscriptionId -Database $Database -verb $GET_VERB -resourceType $PARTITIONKEYRANGE_TYPE -resourceUrl $collectionsUrl -now $now
 
-        $encodedAuthString = Get-AuthorizationHeader -ResourceGroup $ResourceGroup -SubscriptionId $SubscriptionId -Database $Database -verb $GET_VERB -resourceType $PARTITIONKEYRANGE_TYPE -resourceUrl $collectionsUrl -now $now
-
-        $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -PartitionKey $requestPartitionKey
+            return @{ now = $now; encodedAuthString = $encodedAuthString }
+        }
+        
+        $headers = Get-CommonHeaders -PartitionKey $requestPartitionKey
         $headers["x-ms-documentdb-query-enablecrosspartition"] = "true"
 
-        $response = Invoke-CosmosDbApiRequestWithContinuation -Verb $GET_VERB -Url $url -Headers $headers | Get-CosmosDbRecordContent
+        $response = Invoke-CosmosDbApiRequestWithContinuation -Verb $GET_VERB -Url $url -Headers $headers -RefreshAuthHeaders $refreshAuthHeaders | Get-CosmosDbRecordContent
 
         $ranges = $response.partitionKeyRanges
 
@@ -450,16 +475,19 @@ Function Get-AllCosmosDbRecords(
 
     $url = "$baseUrl/$docsUrl"
 
-    $now = Get-Time
+    $refreshAuthHeaders = {
+        $now = Get-Time
+        $encodedAuthString = Get-AuthorizationHeader -ResourceGroup $ResourceGroup -SubscriptionId $SubscriptionId -Database $Database -verb $GET_VERB -resourceType $DOCS_TYPE -resourceUrl $collectionsUrl -now $now
 
-    $encodedAuthString = Get-AuthorizationHeader -ResourceGroup $ResourceGroup -SubscriptionId $SubscriptionId -Database $Database -verb $GET_VERB -resourceType $DOCS_TYPE -resourceUrl $collectionsUrl -now $now
+        return @{ now = $now; encodedAuthString = $encodedAuthString }
+    }
 
     $tmp = $ProgressPreference
     $ProgressPreference = 'SilentlyContinue'
     try {
-        $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -isQuery $true
+        $headers = Get-CommonHeaders -isQuery $true
 
-        Invoke-CosmosDbApiRequestWithContinuation -verb $GET_VERB -url $url -Headers $headers
+        Invoke-CosmosDbApiRequestWithContinuation -verb $GET_VERB -url $url -Headers $headers -RefreshAuthHeaders $refreshAuthHeaders
     }
     catch {
         Get-ExceptionResponseOrThrow $_
@@ -542,18 +570,21 @@ Function Search-CosmosDbRecords(
 ) {
     $Parameters = @(Get-QueryParametersAsNameValuePairs $Parameters)
 
+    if (!$DisableExtraFeatures) {
+        return Search-CosmosDbRecordsWithExtraFeatures -ResourceGroup $ResourceGroup -Database $Database -Container $Container -Collection $Collection -Query $Query -Parameters $Parameters -SubscriptionId $SubscriptionId
+    }
+
     $baseUrl = Get-BaseDatabaseUrl $Database
     $collectionsUrl = Get-CollectionsUrl $Container $Collection
     $docsUrl = "$collectionsUrl/$DOCS_TYPE"
 
     $url = "$baseUrl/$docsUrl"
 
-    $now = Get-Time
+    $refreshAuthHeaders = {
+        $now = Get-Time
+        $encodedAuthString = Get-AuthorizationHeader -ResourceGroup $ResourceGroup -SubscriptionId $SubscriptionId -Database $Database -verb $POST_VERB -resourceType $DOCS_TYPE -resourceUrl $collectionsUrl -now $now
 
-    $encodedAuthString = Get-AuthorizationHeader -ResourceGroup $ResourceGroup -SubscriptionId $SubscriptionId -Database $Database -verb $POST_VERB -resourceType $DOCS_TYPE -resourceUrl $collectionsUrl -now $now
-
-    if (!$DisableExtraFeatures) {
-        return Search-CosmosDbRecordsWithExtraFeatures -ResourceGroup $ResourceGroup -Database $Database -Container $Container -Collection $Collection -Query $Query -Parameters $Parameters -SubscriptionId $SubscriptionId
+        return @{ now = $now; encodedAuthString = $encodedAuthString }
     }
 
     try {
@@ -562,10 +593,10 @@ Function Search-CosmosDbRecords(
             parameters = $Parameters;
         }
 
-        $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -isQuery $true -contentType "application/Query+json"
+        $headers = Get-CommonHeaders -isQuery $true -contentType "application/Query+json"
         $headers["x-ms-documentdb-query-enablecrosspartition"] = "true"
 
-        Invoke-CosmosDbApiRequestWithContinuation -verb $POST_VERB -url $url -Body $body -Headers $headers
+        Invoke-CosmosDbApiRequestWithContinuation -verb $POST_VERB -url $url -Body $body -Headers $headers -RefreshAuthHeaders $refreshAuthHeaders
     }
     catch {
         Get-ExceptionResponseOrThrow $_
@@ -590,14 +621,17 @@ Function Search-CosmosDbRecordsWithExtraFeatures
 
     $url = "$baseUrl/$docsUrl"
 
-    $now = Get-Time
-
-    $encodedAuthString = Get-AuthorizationHeader -ResourceGroup $ResourceGroup -SubscriptionId $SubscriptionId -Database $Database -verb $POST_VERB -resourceType $DOCS_TYPE -resourceUrl $collectionsUrl -now $now
-
     $allPartitionKeyRangesOrError = Get-PartitionKeyRangesOrError -ResourceGroup $ResourceGroup -Database $Database -Container $Container -Collection $Collection -SubscriptionId $SubscriptionId
 
     if ($allPartitionKeyRangesOrError.ErrorRecord) {
         return Get-ExceptionResponseOrThrow $allPartitionKeyRangesOrError.ErrorRecord
+    }
+
+    $refreshAuthHeaders = {
+        $now = Get-Time
+        $encodedAuthString = Get-AuthorizationHeader -ResourceGroup $ResourceGroup -SubscriptionId $SubscriptionId -Database $Database -verb $POST_VERB -resourceType $DOCS_TYPE -resourceUrl $collectionsUrl -now $now
+
+        return @{ now = $now; encodedAuthString = $encodedAuthString }
     }
     
     try {
@@ -608,7 +642,8 @@ Function Search-CosmosDbRecordsWithExtraFeatures
             parameters = $Parameters;
         }
 
-        $headers = Get-CommonHeaders -now $now -encodedAuthString $encodedAuthString -isQuery $true -contentType "application/Query+json"
+        $authHeaders = Invoke-Command -ScriptBlock $refreshAuthHeaders
+        $headers = Get-CommonHeaders -now $authHeaders.now -encodedAuthString $authHeaders.encodedAuthString -isQuery $true -contentType "application/Query+json"
         $headers += @{
             "x-ms-documentdb-query-enablecrosspartition"           = "true";
             "x-ms-cosmos-supported-query-features"                 = "NonValueAggregate, Aggregate, Distinct, MultipleOrderBy, OffsetAndLimit, OrderBy, Top, CompositeAggregate, GroupBy, MultipleAggregates";
@@ -640,7 +675,7 @@ Function Search-CosmosDbRecordsWithExtraFeatures
         foreach ($partitionKeyRange in $partitionKeyRanges) {
             $headers["x-ms-documentdb-partitionkeyrangeid"] = $partitionKeyRange.id
 
-            Invoke-CosmosDbApiRequestWithContinuation -verb $POST_VERB -url $url -Body $body -Headers $headers
+            Invoke-CosmosDbApiRequestWithContinuation -verb $POST_VERB -url $url -Body $body -Headers $headers -RefreshAuthHeaders $refreshAuthHeaders
         }
     }
     catch {
