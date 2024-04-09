@@ -1,6 +1,16 @@
 # Release Notes
 All notable changes and release history of the "cosmos-db" module will be documented in this file.
 
+## 1.18
+* Fixes a bug in commands like `Search-CosmosDbRecords` and `Get-AllCosmosDbRecords` which might run for long enough that their auth tokens expire and aren't refreshed. Auth tokens will now be refreshed every 10 min as these commands run.
+* Adds a `-enableAuthHeaderReuse` flag to `Use-CosmosDbInternalFlag` which disables the 10 minute refresh period and forces auth header refreshes for every API call.
+
+## 1.17
+* Fixes `Search-CosmosDbRecords` for partition key range uses where the PK range fetch call didn't use continuation tokens and might miss some results.
+
+## 1.16
+* Adds support for readonly keys via `Use-CosmosDbReadonlyKeys`
+
 ## 1.15
 * Adds support for optimistic concurrency (enabled by default) to `Update-CosmosDbRecord`
 

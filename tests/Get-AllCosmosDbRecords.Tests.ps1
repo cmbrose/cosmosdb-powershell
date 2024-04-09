@@ -18,8 +18,7 @@ InModuleScope cosmos-db {
 
             $MOCK_AUTH_HEADER = "MockAuthHeader"
 
-            Function VerifyGetAuthHeader($ResourceGroup, $SubscriptionId, $Database, $verb, $resourceType, $resourceUrl, $now)
-            {
+            Function VerifyGetAuthHeader($ResourceGroup, $SubscriptionId, $Database, $verb, $resourceType, $resourceUrl, $now) {
                 $ResourceGroup | Should -Be $MOCK_RG
                 $SubscriptionId | Should -Be $MOCK_SUB
 
@@ -28,15 +27,19 @@ InModuleScope cosmos-db {
                 $resourceUrl | Should -Be "dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION"
             }
 
-            Function VerifyInvokeCosmosDbApiRequest($verb, $url, $body, $headers, $partitionKey=$MOCK_RECORD_ID)
-            {
+            Function VerifyInvokeCosmosDbApiRequest($verb, $url, $body, $headers, $refreshAuthHeaders, $partitionKey = $MOCK_RECORD_ID) {
                 $verb | Should -Be "get"
                 $url | Should -Be "https://$MOCK_DB.documents.azure.com/dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/docs"        
                 $body | Should -Be $null
+
+                $authHeaders = Invoke-Command -ScriptBlock $refreshAuthHeaders
                     
                 $global:capturedNow | Should -Not -Be $null
 
-                $expectedHeaders = Get-CommonHeaders -now $global:capturedNow -encodedAuthString $MOCK_AUTH_HEADER -isQuery $true
+                $authHeaders.now | Should -Be $global:capturedNow
+                $authHeaders.encodedAuthString | Should -Be $MOCK_AUTH_HEADER
+
+                $expectedHeaders = Get-CommonHeaders -isQuery $true
             
                 AssertHashtablesEqual $expectedHeaders $headers
             }
@@ -55,14 +58,14 @@ InModuleScope cosmos-db {
         It "Sends correct request" {    
             $response = @{
                 StatusCode = 200;
-                Content = "{}";
-                Headers = @{};
+                Content    = "{}";
+                Headers    = @{};
             }
 
             Mock Invoke-CosmosDbApiRequestWithContinuation {
-                param($verb, $url, $body, $headers) 
+                param($verb, $url, $body, $headers, $refreshAuthHeaders) 
                 
-                VerifyInvokeCosmosDbApiRequest $verb $url $body $headers | Out-Null
+                VerifyInvokeCosmosDbApiRequest $verb $url $body $headers $refreshAuthHeaders | Out-Null
         
                 $response
             }
@@ -77,26 +80,26 @@ InModuleScope cosmos-db {
         It "Returns multiple responses" {
             $response1 = @{
                 StatusCode = 200;
-                Content = "1";
-                Headers = @{};
+                Content    = "1";
+                Headers    = @{};
             }
 
             $response2 = @{
                 StatusCode = 200;
-                Content = "1";
-                Headers = @{};
+                Content    = "1";
+                Headers    = @{};
             }
 
             $response3 = @{
                 StatusCode = 200;
-                Content = "1";
-                Headers = @{};
+                Content    = "1";
+                Headers    = @{};
             }
 
             Mock Invoke-CosmosDbApiRequestWithContinuation {
-                param($verb, $url, $body, $headers) 
+                param($verb, $url, $body, $headers, $refreshAuthHeaders) 
                 
-                VerifyInvokeCosmosDbApiRequest $verb $url $body $headers | Out-Null
+                VerifyInvokeCosmosDbApiRequest $verb $url $body $headers $refreshAuthHeaders | Out-Null
         
                 $response1
                 $response2
@@ -118,10 +121,10 @@ InModuleScope cosmos-db {
 
             $recordResponse = [PSCustomObject]@{}
 
-            Mock Invoke-CosmosDbApiRequest {
-                param($verb, $url, $body, $headers) 
+            Mock Invoke-CosmosDbApiRequestWithContinuation {
+                param($verb, $url, $body, $headers, $refreshAuthHeaders) 
                 
-                VerifyInvokeCosmosDbApiRequest $verb $url $body $headers | Out-Null
+                VerifyInvokeCosmosDbApiRequest $verb $url $body $headers $refreshAuthHeaders | Out-Null
         
                 throw [System.Net.WebException]::new("", $null, [System.Net.WebExceptionStatus]::UnknownError, $response)
             }

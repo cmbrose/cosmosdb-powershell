@@ -19,8 +19,7 @@ InModuleScope cosmos-db {
 
             $MOCK_AUTH_HEADER = "MockAuthHeader"
 
-            Function VerifyGetAuthHeader($ResourceGroup, $SubscriptionId, $Database, $verb, $resourceType, $resourceUrl, $now)
-            {
+            Function VerifyGetAuthHeader($ResourceGroup, $SubscriptionId, $Database, $verb, $resourceType, $resourceUrl, $now) {
                 $ResourceGroup | Should -Be $MOCK_RG
                 $SubscriptionId | Should -Be $MOCK_SUB
 
@@ -29,8 +28,7 @@ InModuleScope cosmos-db {
                 $resourceUrl | Should -Be "dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION"
             }
 
-            Function VerifyInvokeCosmosDbApiRequest($verb, $url, $actualBody, $expectedBody, $headers, $partitionKey=$MOCK_RECORD_ID)
-            {
+            Function VerifyInvokeCosmosDbApiRequest($verb, $url, $actualBody, $expectedBody, $headers, $refreshAuthHeaders, $partitionKey = $MOCK_RECORD_ID) {
                 $verb | Should -Be "post"
                 $url | Should -Be "https://$MOCK_DB.documents.azure.com/dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/docs"        
                 
@@ -45,9 +43,14 @@ InModuleScope cosmos-db {
                     $matchedParam.value | Should -Be $e.value -Because ("of the expected query param value for {0}" -f $e.name)
                 }
                     
+                $authHeaders = Invoke-Command -ScriptBlock $refreshAuthHeaders
+                    
                 $global:capturedNow | Should -Not -Be $null
 
-                $expectedHeaders = Get-CommonHeaders -now $global:capturedNow -encodedAuthString $MOCK_AUTH_HEADER -isQuery $true -contentType "application/Query+json"
+                $authHeaders.now | Should -Be $global:capturedNow
+                $authHeaders.encodedAuthString | Should -Be $MOCK_AUTH_HEADER
+
+                $expectedHeaders = Get-CommonHeaders -isQuery $true -contentType "application/Query+json"
                 $expectedHeaders["x-ms-documentdb-query-enablecrosspartition"] = "true"
 
                 AssertHashtablesEqual $expectedHeaders $headers
@@ -67,19 +70,19 @@ InModuleScope cosmos-db {
         It "Sends correct request with no parameters" {    
             $response = @{
                 StatusCode = 200;
-                Content = "{}";
-                Headers = @{};
+                Content    = "{}";
+                Headers    = @{};
             }
 
             $expectedBody = @{
-                query = $MOCK_QUERY;
+                query      = $MOCK_QUERY;
                 parameters = @();
             }
 
             Mock Invoke-CosmosDbApiRequestWithContinuation {
-                param($verb, $url, $body, $headers) 
+                param($verb, $url, $body, $headers, $refreshAuthHeaders) 
                 
-                VerifyInvokeCosmosDbApiRequest $verb $url $body $expectedBody $headers | Out-Null
+                VerifyInvokeCosmosDbApiRequest $verb $url $body $expectedBody $headers $refreshAuthHeaders | Out-Null
         
                 $response
             }
@@ -94,8 +97,8 @@ InModuleScope cosmos-db {
         It "Sends correct request with name-value parameters" {    
             $response = @{
                 StatusCode = 200;
-                Content = "{}";
-                Headers = @{};
+                Content    = "{}";
+                Headers    = @{};
             }
 
             $parameters = @(
@@ -104,14 +107,14 @@ InModuleScope cosmos-db {
             )
 
             $expectedBody = @{
-                query = $MOCK_QUERY;
+                query      = $MOCK_QUERY;
                 parameters = $parameters;
             }
 
             Mock Invoke-CosmosDbApiRequestWithContinuation {
-                param($verb, $url, $body, $headers) 
+                param($verb, $url, $body, $headers, $refreshAuthHeaders) 
                 
-                VerifyInvokeCosmosDbApiRequest $verb $url $body $expectedBody $headers | Out-Null
+                VerifyInvokeCosmosDbApiRequest $verb $url $body $expectedBody $headers $refreshAuthHeaders | Out-Null
         
                 $response
             }
@@ -126,8 +129,8 @@ InModuleScope cosmos-db {
         It "Sends correct request with hashtable parameters" {    
             $response = @{
                 StatusCode = 200;
-                Content = "{}";
-                Headers = @{};
+                Content    = "{}";
+                Headers    = @{};
             }
 
             $nameValueParams = @(
@@ -140,14 +143,14 @@ InModuleScope cosmos-db {
             }
 
             $expectedBody = @{
-                query = $MOCK_QUERY;
+                query      = $MOCK_QUERY;
                 parameters = $nameValueParams;
             }
 
             Mock Invoke-CosmosDbApiRequestWithContinuation {
-                param($verb, $url, $body, $headers) 
+                param($verb, $url, $body, $headers, $refreshAuthHeaders) 
                 
-                VerifyInvokeCosmosDbApiRequest $verb $url $body $expectedBody $headers | Out-Null
+                VerifyInvokeCosmosDbApiRequest $verb $url $body $expectedBody $headers $refreshAuthHeaders | Out-Null
         
                 $response
             }
@@ -162,31 +165,31 @@ InModuleScope cosmos-db {
         It "Returns multiple responses" {
             $response1 = @{
                 StatusCode = 200;
-                Content = "1";
-                Headers = @{};
+                Content    = "1";
+                Headers    = @{};
             }
 
             $response2 = @{
                 StatusCode = 200;
-                Content = "2";
-                Headers = @{};
+                Content    = "2";
+                Headers    = @{};
             }
 
             $response3 = @{
                 StatusCode = 200;
-                Content = "3";
-                Headers = @{};
+                Content    = "3";
+                Headers    = @{};
             }
 
             $expectedBody = @{
-                query = $MOCK_QUERY;
+                query      = $MOCK_QUERY;
                 parameters = @();
             }
 
             Mock Invoke-CosmosDbApiRequestWithContinuation {
-                param($verb, $url, $body, $headers) 
+                param($verb, $url, $body, $headers, $refreshAuthHeaders) 
                 
-                VerifyInvokeCosmosDbApiRequest $verb $url $body $expectedBody $headers | Out-Null
+                VerifyInvokeCosmosDbApiRequest $verb $url $body $expectedBody $headers $refreshAuthHeaders | Out-Null
         
                 $response1
                 $response2
@@ -209,14 +212,14 @@ InModuleScope cosmos-db {
             $recordResponse = [PSCustomObject]@{}
 
             $expectedBody = @{
-                query = $MOCK_QUERY;
+                query      = $MOCK_QUERY;
                 parameters = @();
             }
 
             Mock Invoke-CosmosDbApiRequestWithContinuation {
-                param($verb, $url, $body, $headers) 
+                param($verb, $url, $body, $headers, $refreshAuthHeaders) 
                 
-                VerifyInvokeCosmosDbApiRequest $verb $url $body $expectedBody $headers | Out-Null
+                VerifyInvokeCosmosDbApiRequest $verb $url $body $expectedBody $headers $refreshAuthHeaders | Out-Null
         
                 throw [System.Net.WebException]::new("", $null, [System.Net.WebExceptionStatus]::UnknownError, $response)
             }
@@ -238,14 +241,14 @@ InModuleScope cosmos-db {
         It "Uses extra features by default" {    
             $response = @{
                 StatusCode = 200;
-                Content = "{}";
-                Headers = @{};
+                Content    = "{}";
+                Headers    = @{};
             }
 
             $mockParameters = @(@{
-                name = "Mock";
-                value = "MOCK";
-            })
+                    name  = "Mock";
+                    value = "MOCK";
+                })
 
             Mock Search-CosmosDbRecordsWithExtraFeatures {
                 param($ResourceGroup, $Database, $Container, $Collection, $Query, $Parameters, $SubscriptionId) 

@@ -30,14 +30,19 @@ InModuleScope cosmos-db {
                 $resourceUrl | Should -Be "dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION"
             }
 
-            Function VerifyInvokeCosmosDbApiRequest($verb, $url, $body, $headers, $partitionKey = $MOCK_RECORD_ID) {
+            Function VerifyInvokeCosmosDbApiRequest($verb, $url, $body, $headers, $refreshAuthHeaders, $partitionKey = $MOCK_RECORD_ID) {
                 $verb | Should -Be "get"
                 $url | Should -Be "https://$MOCK_DB.documents.azure.com/dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/pkranges"        
                 $body | Should -Be $null
+
+                $authHeaders = Invoke-Command -ScriptBlock $refreshAuthHeaders
                     
                 $global:capturedNow | Should -Not -Be $null
 
-                $expectedHeaders = Get-CommonHeaders -now $global:capturedNow -encodedAuthString $MOCK_AUTH_HEADER
+                $authHeaders.now | Should -Be $global:capturedNow
+                $authHeaders.encodedAuthString | Should -Be $MOCK_AUTH_HEADER
+
+                $expectedHeaders = Get-CommonHeaders
                 $expectedHeaders["x-ms-documentdb-query-enablecrosspartition"] = "true"
 
                 AssertHashtablesEqual $expectedHeaders $headers
@@ -66,9 +71,9 @@ InModuleScope cosmos-db {
             }
 
             Mock Invoke-CosmosDbApiRequestWithContinuation {
-                param($verb, $url, $body, $headers) 
+                param($verb, $url, $body, $headers, $refreshAuthHeaders) 
                 
-                VerifyInvokeCosmosDbApiRequest $verb $url $body $headers | Out-Null
+                VerifyInvokeCosmosDbApiRequest $verb $url $body $headers $refreshAuthHeaders | Out-Null
         
                 $response
             }
@@ -94,9 +99,9 @@ InModuleScope cosmos-db {
             }
 
             Mock Invoke-CosmosDbApiRequestWithContinuation {
-                param($verb, $url, $body, $headers) 
+                param($verb, $url, $body, $headers, $refreshAuthHeaders) 
                 
-                VerifyInvokeCosmosDbApiRequest $verb $url $body $headers | Out-Null
+                VerifyInvokeCosmosDbApiRequest $verb $url $body $headers $refreshAuthHeaders | Out-Null
         
                 $response
             }
@@ -147,9 +152,9 @@ InModuleScope cosmos-db {
             }
 
             Mock Invoke-CosmosDbApiRequestWithContinuation {
-                param($verb, $url, $body, $headers) 
+                param($verb, $url, $body, $headers, $refreshAuthHeaders) 
                 
-                VerifyInvokeCosmosDbApiRequest $verb $url $body $headers | Out-Null
+                VerifyInvokeCosmosDbApiRequest $verb $url $body $headers $refreshAuthHeaders | Out-Null
         
                 $response1
                 $response2
@@ -176,10 +181,10 @@ InModuleScope cosmos-db {
         It "Should handle exceptions gracefully" {    
             $exception = [System.Net.WebException]::new("", $null, [System.Net.WebExceptionStatus]::UnknownError, [System.Net.HttpWebResponse]@{})
 
-            Mock Invoke-CosmosDbApiRequest {
-                param($verb, $url, $body, $headers) 
+            Mock Invoke-CosmosDbApiRequestWithContinuation {
+                param($verb, $url, $body, $headers, $refreshAuthHeaders) 
                 
-                VerifyInvokeCosmosDbApiRequest $verb $url $body $headers | Out-Null
+                VerifyInvokeCosmosDbApiRequest $verb $url $body $headers $refreshAuthHeaders | Out-Null
         
                 throw $exception
             }

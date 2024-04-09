@@ -263,8 +263,9 @@ Use-CosmosDbInternalFlag -EnableFiddlerDebugging $true
 | Name | Usage | Required |
 | - | - | - |
 | EnableFiddlerDebugging | Sets the `az` flag `env:AZURE_CLI_DISABLE_CONNECTION_VERIFICATION` which enables `az` commands with a Fiddler proxy | No - default is disabled |
-| EnableCaching | Enables caching certain values like DB keys, partition ranges, etc. Improves performance of nearly all operations. | No - default is enabled |
-| EnablePartitionKeyRangeSearches | **[Experimental]** Enables filtering `Search` queries to relevant partition ranges instead of a full scan. Improves performance of `Search` commands. | No - default is disabled |
+| EnableCaching | Enables/disables caching certain values like DB keys, partition ranges, etc. Improves performance of nearly all operations. | No - default is enabled |
+| EnablePartitionKeyRangeSearches | **[Experimental]** Enables/disables filtering `Search` queries to relevant partition ranges instead of a full scan. Improves performance of `Search` commands. | No - default is disabled |
+| EnableAuthHeaderReuse | Enables/disables reusing auth headers for commands which use continuation tokens, like `Search-CosmosDbRecords` or `Get-AllCosmosDbRecords`. | No - default is enabled |
 
 ## Error Handling
 

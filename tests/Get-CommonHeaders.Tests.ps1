@@ -34,5 +34,15 @@ InModuleScope cosmos-db {
                 "x-ms-documentdb-partitionkey" = "[`"MOCK_PARTITION_KEY`"]";
             } $result
         }
+
+        It "Doesn't require authorization headers" {    
+            $result = Get-CommonHeaders
+
+            AssertHashtablesEqual @{
+                "x-ms-version" = "2018-12-31";
+                "Cache-Control" = "No-Cache";
+                "Content-Type" = "application/json";
+            } $result
+        }
     }
 }
