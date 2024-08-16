@@ -5,6 +5,7 @@ InModuleScope cosmos-db {
     Describe "Remove-CosmosDbRecord" {                    
         BeforeEach {
             Use-CosmosDbInternalFlag -EnableCaching $false
+            Use-CosmosDbReadonlyKeys -Disable
             
             . $PSScriptRoot\Utils.ps1    
 
@@ -28,7 +29,7 @@ InModuleScope cosmos-db {
                 $resourceUrl | Should -Be "dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/docs/$MOCK_RECORD_ID"
             }
 
-            Function VerifyInvokeCosmosDbApiRequest($verb, $url, $body, $headers, $apiUriRecordId=$MOCK_RECORD_ID, $partitionKey=$MOCK_RECORD_ID) {
+            Function VerifyInvokeCosmosDbApiRequest($verb, $url, $body, $headers, $apiUriRecordId = $MOCK_RECORD_ID, $partitionKey = $MOCK_RECORD_ID) {
                 $verb | Should -Be "delete"
                 $url | Should -Be "https://$MOCK_DB.documents.azure.com/dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/docs/$apiUriRecordId"        
                 $body | Should -Be $null
@@ -49,6 +50,12 @@ InModuleScope cosmos-db {
         
                 $MOCK_AUTH_HEADER
             }
+        }
+
+        It "Should throw in read only mode" {
+            Use-CosmosDbReadonlyKeys
+
+            { Remove-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION -RecordId $MOCK_RECORD_ID } | Should -Throw "Operation not allowed in readonly mode"
         }
 
         It "Sends correct request with default partition key" {    
@@ -172,7 +179,7 @@ InModuleScope cosmos-db {
         It "Url encodes the record id in the API url" {    
             $response = @{
                 StatusCode = 200;
-                Content = "{}"
+                Content    = "{}"
             }
 
             $testRecordId = "MOCK/RECORD/ID"
@@ -205,7 +212,7 @@ InModuleScope cosmos-db {
         It "Url encodes the record id in the API url from an input object" {    
             $response = @{
                 StatusCode = 200;
-                Content = "{}"
+                Content    = "{}"
             }
 
             $testRecordId = "MOCK/RECORD/ID"

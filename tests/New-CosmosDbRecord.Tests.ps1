@@ -3,8 +3,9 @@ Import-Module $PSScriptRoot\..\cosmos-db\cosmos-db.psm1 -Force
 
 InModuleScope cosmos-db {
     Describe "New-CosmosDbRecord" {                    
-        BeforeAll {
+        BeforeEach {
             Use-CosmosDbInternalFlag -EnableCaching $false
+            Use-CosmosDbReadonlyKeys -Disable
             
             . $PSScriptRoot\Utils.ps1    
 
@@ -19,8 +20,7 @@ InModuleScope cosmos-db {
 
             $MOCK_AUTH_HEADER = "MockAuthHeader"
 
-            Function VerifyGetAuthHeader($ResourceGroup, $SubscriptionId, $Database, $verb, $resourceType, $resourceUrl, $now)
-            {
+            Function VerifyGetAuthHeader($ResourceGroup, $SubscriptionId, $Database, $verb, $resourceType, $resourceUrl, $now) {
                 $ResourceGroup | Should -Be $MOCK_RG
                 $SubscriptionId | Should -Be $MOCK_SUB
 
@@ -29,8 +29,7 @@ InModuleScope cosmos-db {
                 $resourceUrl | Should -Be "dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION"
             }
 
-            Function VerifyInvokeCosmosDbApiRequest($verb, $url, $actualBody, $expectedBody, $headers, $partitionKey=$MOCK_RECORD_ID)
-            {
+            Function VerifyInvokeCosmosDbApiRequest($verb, $url, $actualBody, $expectedBody, $headers, $partitionKey = $MOCK_RECORD_ID) {
                 $verb | Should -Be "post"
                 $url | Should -Be "https://$MOCK_DB.documents.azure.com/dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/docs"        
                     
@@ -54,14 +53,26 @@ InModuleScope cosmos-db {
             }
         }
 
+        It "Should throw in read only mode" {
+            Use-CosmosDbReadonlyKeys
+
+            $payload = @{
+                id   = $MOCK_RECORD_ID;
+                key1 = "value1";
+                key2 = 2;
+            }
+
+            { $payload | New-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION } | Should -Throw "Operation not allowed in readonly mode"
+        }
+
         It "Sends correct request with default partition key" {            
             $response = @{
                 StatusCode = 200;
-                Content = "{}"
+                Content    = "{}"
             }
 
             $payload = @{
-                id = $MOCK_RECORD_ID;
+                id   = $MOCK_RECORD_ID;
                 key1 = "value1";
                 key2 = 2;
             }
@@ -84,11 +95,11 @@ InModuleScope cosmos-db {
         It "Sends correct request with custom explicit partition key" {
             $response = @{
                 StatusCode = 200;
-                Content = "{}"
+                Content    = "{}"
             }
 
             $payload = @{
-                id = $MOCK_RECORD_ID;
+                id   = $MOCK_RECORD_ID;
                 key1 = "value1";
                 key2 = 2;
             }
@@ -113,11 +124,11 @@ InModuleScope cosmos-db {
         It "Sends correct request with custom partition key callback" {
             $response = @{
                 StatusCode = 200;
-                Content = "{}"
+                Content    = "{}"
             }
 
             $payload = @{
-                id = $MOCK_RECORD_ID;
+                id   = $MOCK_RECORD_ID;
                 key1 = "value1";
                 key2 = 2;
             }
@@ -148,9 +159,9 @@ InModuleScope cosmos-db {
 
         It "Sends correct request with custom partition key callback for multiple inputs" {
             $payloads = @(
-                @{ id = "1"  };
-                @{ id = "2"  };
-                @{ id = "3"  };
+                @{ id = "1" };
+                @{ id = "2" };
+                @{ id = "3" };
             )
 
             $global:idx = 0
@@ -174,7 +185,7 @@ InModuleScope cosmos-db {
 
                 $response = @{
                     StatusCode = 200;
-                    Content = $global:idx;
+                    Content    = $global:idx;
                 }
 
                 $global:expectedResponses += $response
@@ -196,7 +207,7 @@ InModuleScope cosmos-db {
             $recordResponse = [PSCustomObject]@{}
 
             $payload = @{
-                id = $MOCK_RECORD_ID;
+                id   = $MOCK_RECORD_ID;
                 key1 = "value1";
                 key2 = 2;
             }
