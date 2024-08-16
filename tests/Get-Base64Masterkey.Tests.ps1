@@ -26,6 +26,10 @@ InModuleScope cosmos-db {
             }
         }
 
+        AfterAll {
+            $env:COSMOS_DB_FLAG_ENABLE_READONLY_KEYS = $null
+        }
+
         BeforeEach {
             # This is defined in the main module
             $MASTER_KEY_CACHE = @{}

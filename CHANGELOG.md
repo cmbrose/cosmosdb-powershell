@@ -1,6 +1,10 @@
 # Release Notes
 All notable changes and release history of the "cosmos-db" module will be documented in this file.
 
+## 1.19
+* Changed to Entra Id authentication by default. 
+* Adds a `-enableMasterKeyAuth` flag to `Use-CosmosDbInternalFlag` which reverts auth to use master keys.
+
 ## 1.18
 * Fixes a bug in commands like `Search-CosmosDbRecords` and `Get-AllCosmosDbRecords` which might run for long enough that their auth tokens expire and aren't refreshed. Auth tokens will now be refreshed every 10 min as these commands run.
 * Adds a `-enableAuthHeaderReuse` flag to `Use-CosmosDbInternalFlag` which disables the 10 minute refresh period and forces auth header refreshes for every API call.

@@ -387,7 +387,6 @@ InModuleScope cosmos-db {
         }
 
         It "Does not refresh auth headers before age threshold" {
-            # Force each call to refresh
             $AUTHORIZATION_HEADER_REFRESH_THRESHOLD = [System.TimeSpan]::FromHours(1)
 
             $continuationTokens = @($null, "100", "200", "300")

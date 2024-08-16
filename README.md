@@ -266,6 +266,7 @@ Use-CosmosDbInternalFlag -EnableFiddlerDebugging $true
 | EnableCaching | Enables/disables caching certain values like DB keys, partition ranges, etc. Improves performance of nearly all operations. | No - default is enabled |
 | EnablePartitionKeyRangeSearches | **[Experimental]** Enables/disables filtering `Search` queries to relevant partition ranges instead of a full scan. Improves performance of `Search` commands. | No - default is disabled |
 | EnableAuthHeaderReuse | Enables/disables reusing auth headers for commands which use continuation tokens, like `Search-CosmosDbRecords` or `Get-AllCosmosDbRecords`. | No - default is enabled |
+| EnableMasterKeyAuth | Enables/disables using master key based authentication instead of Entra Id. | No - default is disabled |
 
 ## Error Handling
 

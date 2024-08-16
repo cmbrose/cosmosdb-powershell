@@ -9,6 +9,10 @@ InModuleScope cosmos-db {
             . $PSScriptRoot\Utils.ps1
         }
 
+        AfterAll {
+            $env:COSMOS_DB_FLAG_ENABLE_READONLY_KEYS = $null
+        }
+
         It "Returns the Content of a successful response" {
             $content = @{ 
                 Key1   = "Value1";

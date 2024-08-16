@@ -15,6 +15,7 @@ $API_VERSION = "2018-12-31"
 $AUTHORIZATION_HEADER_REFRESH_THRESHOLD = [System.TimeSpan]::FromMinutes(10);
 
 $MASTER_KEY_CACHE = @{}
+$AAD_TOKEN_CACHE = @{}
 $SIGNATURE_HASH_CACHE = @{}
 $PARTITION_KEY_RANGE_CACHE = @{}
 
@@ -57,10 +58,20 @@ Function Get-CacheValue([string]$key, [hashtable]$cache) {
     return $null
 }
 
-Function Set-CacheValue([string]$key, $value, [hashtable]$cache, [int]$expirationHours) {
+Function Set-CacheValue([string]$key, $value, [hashtable]$cache, [int]$expirationHours, [int]$expirationMinutes) {
     $cache[$key] = @{ 
-        Expiration = [datetime]::UtcNow.AddHours($expirationHours);
+        Expiration = [datetime]::UtcNow.AddHours($expirationHours).AddMinutes($expirationMinutes);
         Value      = $value 
+    }
+}
+
+Function RequireWriteableKey() {
+    # Entra Id auth does not support read only tokens (because it's just handled by RBAC).
+    # So if the user requested to be in read only mode, we have to manage it ourselves.
+
+    $readonlyEnabled = $env:COSMOS_DB_FLAG_ENABLE_READONLY_KEYS -eq 1
+    if ($readonlyEnabled) {
+        throw "Operation not allowed in readonly mode"
     }
 }
 
@@ -99,6 +110,31 @@ Function Get-Base64MasterkeyWithoutCaching([string]$ResourceGroup, [string]$Data
     $masterKey
 }
 
+Function Get-AADToken([string]$ResourceGroup, [string]$Database, [string]$SubscriptionId) {
+    $cacheKey = "aadtoken"
+    $cacheResult = Get-CacheValue -Key $cacheKey -Cache $AAD_TOKEN_CACHE
+    if ($cacheResult) {
+        return $cacheResult
+    }
+
+    $oauth = Get-AADTokenWithoutCaching
+    $token = $oauth.AccessToken
+
+    $expirationUtcTimestamp = $oauth.expires_on
+    $expiration = [System.DateTimeOffset]::FromUnixTimeSeconds($expirationUtcTimestamp).DateTime
+    $remainingTime = $expiration - [System.DateTime]::UtcNow
+    $cacheExpirationMinutes = ($remainingTime - $AUTHORIZATION_HEADER_REFRESH_THRESHOLD).Minutes
+
+    Set-CacheValue -Key $cacheKey -Value $token -Cache $AAD_TOKEN_CACHE -ExpirationMinutes $cacheExpirationMinutes
+
+    $token
+}
+
+# This is just to support testing caching with Get-Base64Masterkey and isn't meant to be used directly
+Function Get-AADTokenWithoutCaching() {
+    az account get-access-token --resource "https://cosmos.azure.com" | ConvertFrom-Json
+}
+
 Function Get-Signature([string]$verb, [string]$resourceType, [string]$resourceUrl, [string]$now) {
     $parts = @(
         $verb.ToLower(),
@@ -128,19 +164,25 @@ Function Get-Base64EncryptedSignatureHash([string]$masterKey, [string]$signature
     $base64Hash
 }
 
-Function Get-EncodedAuthString([string]$signatureHash) {
-    $authString = "type=master&ver=1.0&sig=$signatureHash"
+Function Get-EncodedAuthString([string]$signatureHash, [string]$type) {
+    $authString = "type=$type&ver=1.0&sig=$signatureHash"
     [uri]::EscapeDataString($authString)
 }
 
 Function Get-AuthorizationHeader([string]$ResourceGroup, [string]$SubscriptionId, [string]$Database, [string]$verb, [string]$resourceType, [string]$resourceUrl, [string]$now) {            
-    $masterKey = Get-Base64Masterkey -ResourceGroup $ResourceGroup -Database $Database -SubscriptionId $SubscriptionId
+    if ($env:COSMOS_DB_FLAG_ENABLE_MASTER_KEY_AUTH -eq 1) {
+        $masterKey = Get-Base64Masterkey -ResourceGroup $ResourceGroup -Database $Database -SubscriptionId $SubscriptionId
         
-    $signature = Get-Signature -verb $verb -resourceType $resourceType -resourceUrl $resourceUrl -now $now
+        $signature = Get-Signature -verb $verb -resourceType $resourceType -resourceUrl $resourceUrl -now $now
+    
+        $signatureHash = Get-Base64EncryptedSignatureHash -masterKey $masterKey -signature $signature
+    
+        return Get-EncodedAuthString -signatureHash $signatureHash -type "master"
+    }
 
-    $signatureHash = Get-Base64EncryptedSignatureHash -masterKey $masterKey -signature $signature
+    $token = Get-AADToken
 
-    Get-EncodedAuthString -signatureHash $signatureHash
+    return Get-EncodedAuthString -signatureHash $token -type "aad"
 }
 
 Function Get-CommonHeaders([string]$now, [string]$encodedAuthString, [string]$contentType = "application/json", [bool]$isQuery = $false, [string]$PartitionKey = $null, [string]$Etag = $null) {
@@ -268,7 +310,7 @@ Function Invoke-CosmosDbApiRequestWithContinuation([string]$verb, [string]$url, 
         $headers["x-ms-continuation"] = $continuationToken
 
         $authHeaderReuseDisabled = $env:COSMOS_DB_FLAG_ENABLE_AUTH_HEADER_REUSE -eq 0
-        $authHeaderExpired = [System.DateTime]::Parse($authHeaders.now) + $AUTHORIZATION_HEADER_REFRESH_THRESHOLD -lt [System.DateTime]::UtcNow
+        $authHeaderExpired = [System.DateTimeOffset]::Parse($authHeaders.now) + $AUTHORIZATION_HEADER_REFRESH_THRESHOLD -lt [System.DateTime]::UtcNow
         
         if ($authHeaderReuseDisabled -or $authHeaderExpired) {
             $authHeaders = Invoke-Command -ScriptBlock $refreshAuthHeaders
@@ -746,6 +788,8 @@ Function New-CosmosDbRecord {
     )
 
     begin {
+        RequireWriteableKey
+
         $baseUrl = Get-BaseDatabaseUrl $Database
         $collectionsUrl = Get-CollectionsUrl $Container $Collection
         $docsUrl = "$collectionsUrl/$DOCS_TYPE"
@@ -833,6 +877,8 @@ Function Update-CosmosDbRecord {
     )
 
     begin {
+        RequireWriteableKey
+
         $baseUrl = Get-BaseDatabaseUrl $Database
     }
     process {
@@ -929,6 +975,8 @@ Function Remove-CosmosDbRecord {
     )
 
     begin {
+        RequireWriteableKey
+
         $baseUrl = Get-BaseDatabaseUrl $Database        
     }
     process {
@@ -1005,7 +1053,8 @@ Function Use-CosmosDbInternalFlag
     $enableFiddlerDebugging = $null,
     $enableCaching = $null,
     $enablePartitionKeyRangeSearches = $null,
-    $enableAuthHeaderReuse = $null
+    $enableAuthHeaderReuse = $null,
+    $enableMasterKeyAuth = $null
 ) {
     if ($null -ne $enableFiddlerDebugging) {
         $env:AZURE_CLI_DISABLE_CONNECTION_VERIFICATION = if ($enableFiddlerDebugging) { 1 } else { 0 }
@@ -1021,6 +1070,10 @@ Function Use-CosmosDbInternalFlag
 
     if ($null -ne $enableAuthHeaderReuse) {
         $env:COSMOS_DB_FLAG_ENABLE_AUTH_HEADER_REUSE = if ($enableAuthHeaderReuse) { 1 } else { 0 }
+    }
+
+    if ($null -ne $enableMasterKeyAuth) {
+        $env:COSMOS_DB_FLAG_ENABLE_MASTER_KEY_AUTH = if ($enableMasterKeyAuth) { 1 } else { 0 }
     }
 }
 
