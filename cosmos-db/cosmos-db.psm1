@@ -130,7 +130,7 @@ Function Get-AADToken([string]$ResourceGroup, [string]$Database, [string]$Subscr
     $token
 }
 
-# This is just to support testing caching with Get-Base64Masterkey and isn't meant to be used directly
+# This is just to support testing caching with Get-AADToken and isn't meant to be used directly
 Function Get-AADTokenWithoutCaching() {
     az account get-access-token --resource "https://cosmos.azure.com" | ConvertFrom-Json
 }
