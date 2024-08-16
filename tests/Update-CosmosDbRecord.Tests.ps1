@@ -5,6 +5,7 @@ InModuleScope cosmos-db {
     Describe "Update-CosmosDbRecord" {                    
         BeforeEach {
             Use-CosmosDbInternalFlag -EnableCaching $false
+            Use-CosmosDbReadonlyKeys -Disable
             
             . $PSScriptRoot\Utils.ps1    
 
@@ -20,8 +21,7 @@ InModuleScope cosmos-db {
 
             $MOCK_AUTH_HEADER = "MockAuthHeader"
 
-            Function VerifyGetAuthHeader($ResourceGroup, $SubscriptionId, $Database, $verb, $resourceType, $resourceUrl, $now, $expectedId=$MOCK_RECORD_ID)
-            {
+            Function VerifyGetAuthHeader($ResourceGroup, $SubscriptionId, $Database, $verb, $resourceType, $resourceUrl, $now, $expectedId = $MOCK_RECORD_ID) {
                 $ResourceGroup | Should -Be $MOCK_RG
                 $SubscriptionId | Should -Be $MOCK_SUB
 
@@ -30,8 +30,7 @@ InModuleScope cosmos-db {
                 $resourceUrl | Should -Be "dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/docs/$expectedId"
             }
 
-            Function VerifyInvokeCosmosDbApiRequest($verb, $url, $actualBody, $expectedBody, $headers, $expectedId=$MOCK_RECORD_ID, $expectedPartitionKey=$null, $enforceOptimisticConcurrency=$true)
-            {
+            Function VerifyInvokeCosmosDbApiRequest($verb, $url, $actualBody, $expectedBody, $headers, $expectedId = $MOCK_RECORD_ID, $expectedPartitionKey = $null, $enforceOptimisticConcurrency = $true) {
                 $verb | Should -Be "put"
                 $url | Should -Be "https://$MOCK_DB.documents.azure.com/dbs/$MOCK_CONTAINER/colls/$MOCK_COLLECTION/docs/$expectedId"        
                     
@@ -43,7 +42,8 @@ InModuleScope cosmos-db {
                 
                 if ($EnforceOptimisticConcurrency) {
                     $expectedHeaders = Get-CommonHeaders -now $global:capturedNow -encodedAuthString $MOCK_AUTH_HEADER -PartitionKey $expectedPartitionKey -Etag $MOCK_ETAG
-                } else {
+                }
+                else {
                     $expectedHeaders = Get-CommonHeaders -now $global:capturedNow -encodedAuthString $MOCK_AUTH_HEADER -PartitionKey $expectedPartitionKey
                 }
                 AssertHashtablesEqual $expectedHeaders $headers
@@ -60,16 +60,29 @@ InModuleScope cosmos-db {
             }
         }
 
+        It "Should throw in read only mode" {
+            Use-CosmosDbReadonlyKeys
+
+            $payload = @{
+                id      = $MOCK_RECORD_ID;
+                key1    = "value1";
+                key2    = 2;
+                "_etag" = $MOCK_ETAG;
+            }
+
+            { $payload | Update-CosmosDbRecord -ResourceGroup $MOCK_RG -SubscriptionId $MOCK_SUB -Database $MOCK_DB -Container $MOCK_CONTAINER -Collection $MOCK_COLLECTION } | Should -Throw "Operation not allowed in readonly mode"
+        }
+
         It "Sends correct request with default partition key" {            
             $response = @{
                 StatusCode = 200;
-                Content = "{}"
+                Content    = "{}"
             }
 
             $payload = @{
-                id = $MOCK_RECORD_ID;
-                key1 = "value1";
-                key2 = 2;
+                id      = $MOCK_RECORD_ID;
+                key1    = "value1";
+                key2    = 2;
                 "_etag" = $MOCK_ETAG;
             }
 
@@ -91,13 +104,13 @@ InModuleScope cosmos-db {
         It "Sends correct request with custom explicit partition key" {
             $response = @{
                 StatusCode = 200;
-                Content = "{}"
+                Content    = "{}"
             }
 
             $payload = @{
-                id = $MOCK_RECORD_ID;
-                key1 = "value1";
-                key2 = 2;
+                id      = $MOCK_RECORD_ID;
+                key1    = "value1";
+                key2    = 2;
                 "_etag" = $MOCK_ETAG;
             }
 
@@ -121,13 +134,13 @@ InModuleScope cosmos-db {
         It "Sends correct request with custom partition key callback" {
             $response = @{
                 StatusCode = 200;
-                Content = "{}"
+                Content    = "{}"
             }
 
             $payload = @{
-                id = $MOCK_RECORD_ID;
-                key1 = "value1";
-                key2 = 2;
+                id      = $MOCK_RECORD_ID;
+                key1    = "value1";
+                key2    = 2;
                 "_etag" = $MOCK_ETAG;
             }
 
@@ -158,13 +171,13 @@ InModuleScope cosmos-db {
         It "Optimistic concurrency can be disabled" {
             $response = @{
                 StatusCode = 200;
-                Content = "{}"
+                Content    = "{}"
             }
 
             $payload = @{
-                id = $MOCK_RECORD_ID;
-                key1 = "value1";
-                key2 = 2;
+                id      = $MOCK_RECORD_ID;
+                key1    = "value1";
+                key2    = 2;
                 "_etag" = $MOCK_ETAG;
             }
 
@@ -230,7 +243,7 @@ InModuleScope cosmos-db {
 
                 $response = @{
                     StatusCode = 200;
-                    Content = $global:idx;
+                    Content    = $global:idx;
                 }
 
                 $global:expectedResponses += $response
@@ -250,7 +263,7 @@ InModuleScope cosmos-db {
         It "Url encodes the record id in the API url" {    
             $response = @{
                 StatusCode = 200;
-                Content = "{}"
+                Content    = "{}"
             }
 
             $testRecordId = "MOCK/RECORD/ID"
@@ -258,7 +271,7 @@ InModuleScope cosmos-db {
             $expectedAuthHeaderRecordId = $testRecordId # The id in the auth header should not be encoded
 
             $payload = @{
-                id = $testRecordId;
+                id      = $testRecordId;
                 "_etag" = $MOCK_ETAG;
             }
 
@@ -294,9 +307,9 @@ InModuleScope cosmos-db {
             $recordResponse = [PSCustomObject]@{}
 
             $payload = @{
-                id = $MOCK_RECORD_ID;
-                key1 = "value1";
-                key2 = 2;
+                id      = $MOCK_RECORD_ID;
+                key1    = "value1";
+                key2    = 2;
                 "_etag" = $MOCK_ETAG;
             }
 
